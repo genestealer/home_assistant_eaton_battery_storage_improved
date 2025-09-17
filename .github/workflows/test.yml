@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, copilot/fix-8-2 ]
   pull_request:
     branches: [ main ]
 
@@ -12,6 +12,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11, 3.12]
+    continue-on-error: false
 
     steps:
     - uses: actions/checkout@v4
@@ -25,23 +26,16 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
-        # Install Home Assistant and dependencies for testing
-        pip install homeassistant voluptuous aiohttp
+        # Install only essential dependencies for testing
+        pip install voluptuous
     
-    - name: Run integration structure tests
+    - name: Run tests
       run: |
         pytest tests/test_const.py tests/test_integration_structure.py -v
-    
-    - name: Run constants validation
-      run: |
-        pytest tests/test_const.py -v --tb=short
-    
-    - name: Validate integration files
-      run: |
-        pytest tests/test_integration_structure.py -v --tb=short
 
   lint:
     runs-on: ubuntu-latest
+    continue-on-error: false
     
     steps:
     - uses: actions/checkout@v4
