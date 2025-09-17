@@ -113,9 +113,9 @@ class EatonBatteryAPI:
         await self.store.async_save(
             {
                 "access_token": self.access_token,
-                "token_expiration": self.token_expiration.isoformat()
-                if self.token_expiration
-                else None,
+                "token_expiration": (
+                    self.token_expiration.isoformat() if self.token_expiration else None
+                ),
             }
         )
 
