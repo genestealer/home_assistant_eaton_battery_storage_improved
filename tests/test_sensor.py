@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
-
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -47,14 +46,16 @@ class TestSensorPlatform:
         # Verify entities were added
         mock_add_entities.assert_called_once()
         entities = mock_add_entities.call_args[0][0]
-        
+
         # Should have regular sensors plus notifications sensor
         assert len(entities) > 1
-        
+
         # Check that we have both types of sensors
         sensor_entities = [e for e in entities if isinstance(e, EatonXStorageSensor)]
-        notification_entities = [e for e in entities if isinstance(e, EatonXStorageNotificationsSensor)]
-        
+        notification_entities = [
+            e for e in entities if isinstance(e, EatonXStorageNotificationsSensor)
+        ]
+
         assert len(sensor_entities) > 0
         assert len(notification_entities) == 1
 
@@ -212,12 +213,16 @@ class TestEatonXStorageNotificationsSensor:
         assert "Test notification 1" in state
         assert "Test notification 2" in state
 
-    def test_notifications_sensor_state_no_data(self, notifications_sensor, mock_coordinator):
+    def test_notifications_sensor_state_no_data(
+        self, notifications_sensor, mock_coordinator
+    ):
         """Test notifications sensor state with no data."""
         mock_coordinator.data = {}
         assert notifications_sensor.native_value == "No notifications"
 
-    def test_notifications_sensor_state_empty_notifications(self, notifications_sensor, mock_coordinator):
+    def test_notifications_sensor_state_empty_notifications(
+        self, notifications_sensor, mock_coordinator
+    ):
         """Test notifications sensor state with empty notifications."""
         mock_coordinator.data = {"notifications": {"notifications": []}}
         assert notifications_sensor.native_value == "No notifications"
@@ -230,7 +235,9 @@ class TestEatonXStorageNotificationsSensor:
         assert "notifications" in attributes
         assert len(attributes["notifications"]) == 2
 
-    def test_notifications_sensor_device_info(self, notifications_sensor, mock_coordinator):
+    def test_notifications_sensor_device_info(
+        self, notifications_sensor, mock_coordinator
+    ):
         """Test notifications sensor device info."""
         assert notifications_sensor.device_info == mock_coordinator.device_info
 
@@ -263,9 +270,11 @@ class TestSensorDefinitions:
             "status.energyFlow.consumption",
             "status.energyFlow.production",
         ]
-        
+
         for key in critical_keys:
-            assert key in SENSOR_DEFINITIONS, f"Critical sensor {key} missing from definitions"
+            assert (
+                key in SENSOR_DEFINITIONS
+            ), f"Critical sensor {key} missing from definitions"
 
     def test_pv_sensors_present(self):
         """Test that PV-related sensors are present."""
@@ -276,17 +285,28 @@ class TestSensorDefinitions:
             "technical_status.pv1Voltage",
             "technical_status.pv1Current",
         ]
-        
+
         for key in pv_keys:
-            assert key in SENSOR_DEFINITIONS, f"PV sensor {key} missing from definitions"
+            assert (
+                key in SENSOR_DEFINITIONS
+            ), f"PV sensor {key} missing from definitions"
 
     def test_diagnostic_sensors_have_category(self):
         """Test that diagnostic sensors have correct entity category."""
-        diagnostic_keywords = ["firmware", "version", "serial", "ip", "dns", "timezone", "cpu", "ram"]
-        
+        diagnostic_keywords = [
+            "firmware",
+            "version",
+            "serial",
+            "ip",
+            "dns",
+            "timezone",
+            "cpu",
+            "ram",
+        ]
+
         for key, definition in SENSOR_DEFINITIONS.items():
             name_lower = definition["name"].lower()
             if any(keyword in name_lower for keyword in diagnostic_keywords):
-                # Not all diagnostic sensors have the category set, but let's check some do
+                # Not all diagnostic sensors have the category set, but check some
                 if "entity_category" in definition and definition["entity_category"]:
                     assert definition["entity_category"] == EntityCategory.DIAGNOSTIC

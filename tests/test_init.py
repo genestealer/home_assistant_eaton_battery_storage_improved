@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import entity_registry as er
@@ -37,7 +34,7 @@ class TestIntegrationSetup:
     ) -> None:
         """Test successful setup of config entry."""
         mock_api.connect = AsyncMock()
-        
+
         with patch(
             "custom_components.eaton_battery_storage.EatonBatteryAPI",
             return_value=mock_api,
@@ -48,7 +45,7 @@ class TestIntegrationSetup:
         ) as mock_forward_setups, patch(
             "custom_components.eaton_battery_storage.async_migrate_pv_sensors"
         ) as mock_migrate:
-            
+
             mock_coordinator = AsyncMock()
             mock_coordinator.async_config_entry_first_refresh = AsyncMock()
             mock_coordinator_class.return_value = mock_coordinator
@@ -57,7 +54,7 @@ class TestIntegrationSetup:
 
             assert result is True
             assert mock_config_entry.runtime_data == mock_coordinator
-            
+
             mock_api.connect.assert_called_once()
             mock_coordinator.async_config_entry_first_refresh.assert_called_once()
             mock_forward_setups.assert_called_once()
@@ -68,12 +65,14 @@ class TestIntegrationSetup:
     ) -> None:
         """Test setup failure due to connection error."""
         mock_api.connect = AsyncMock(side_effect=ConnectionError("Cannot connect"))
-        
+
         with patch(
             "custom_components.eaton_battery_storage.EatonBatteryAPI",
             return_value=mock_api,
         ):
-            with pytest.raises(ConfigEntryNotReady, match="Failed to connect to device"):
+            with pytest.raises(
+                ConfigEntryNotReady, match="Failed to connect to device"
+            ):
                 await async_setup_entry(hass, mock_config_entry)
 
     async def test_async_setup_entry_api_creation_failure(
@@ -84,7 +83,9 @@ class TestIntegrationSetup:
             "custom_components.eaton_battery_storage.EatonBatteryAPI",
             side_effect=ValueError("Invalid configuration"),
         ):
-            with pytest.raises(ConfigEntryNotReady, match="Failed to connect to device"):
+            with pytest.raises(
+                ConfigEntryNotReady, match="Failed to connect to device"
+            ):
                 await async_setup_entry(hass, mock_config_entry)
 
     async def test_async_setup_entry_coordinator_failure(
@@ -92,21 +93,23 @@ class TestIntegrationSetup:
     ) -> None:
         """Test setup failure due to coordinator refresh error."""
         mock_api.connect = AsyncMock()
-        
+
         with patch(
             "custom_components.eaton_battery_storage.EatonBatteryAPI",
             return_value=mock_api,
         ), patch(
             "custom_components.eaton_battery_storage.EatonXstorageHomeCoordinator"
         ) as mock_coordinator_class:
-            
+
             mock_coordinator = AsyncMock()
             mock_coordinator.async_config_entry_first_refresh = AsyncMock(
                 side_effect=Exception("Coordinator failure")
             )
             mock_coordinator_class.return_value = mock_coordinator
 
-            with pytest.raises(ConfigEntryNotReady, match="Failed to connect to device"):
+            with pytest.raises(
+                ConfigEntryNotReady, match="Failed to connect to device"
+            ):
                 await async_setup_entry(hass, mock_config_entry)
 
     async def test_async_unload_entry(
@@ -127,7 +130,7 @@ class TestIntegrationSetup:
     ) -> None:
         """Test that reload service is registered."""
         mock_api.connect = AsyncMock()
-        
+
         with patch(
             "custom_components.eaton_battery_storage.EatonBatteryAPI",
             return_value=mock_api,
@@ -140,7 +143,7 @@ class TestIntegrationSetup:
         ), patch.object(
             hass.services, "async_register"
         ) as mock_register:
-            
+
             mock_coordinator = AsyncMock()
             mock_coordinator.async_config_entry_first_refresh = AsyncMock()
             mock_coordinator_class.return_value = mock_coordinator
@@ -173,10 +176,10 @@ class TestPVSensorMigration:
         """Test PV sensor migration when has_pv is False."""
         # Set has_pv to False in options
         mock_config_entry.options = {"has_pv": False}
-        
+
         # Create entity registry
         entity_registry = er.async_get(hass)
-        
+
         # Add some PV sensors to the registry
         for key in PV_SENSOR_KEYS[:3]:  # Just test with first 3 keys
             entity_registry.async_get_or_create(
@@ -188,11 +191,11 @@ class TestPVSensorMigration:
             )
 
         # Count enabled PV sensors before migration
-        enabled_pv_sensors_before = sum(
-            1 for key in PV_SENSOR_KEYS
-            if entity_registry.async_get(f"sensor.{DOMAIN}_{key}") is not None
-            and not entity_registry.async_get(f"sensor.{DOMAIN}_{key}").disabled
-        )
+        # enabled_pv_sensors_before = sum(
+        #     1 for key in PV_SENSOR_KEYS
+        #     if entity_registry.async_get(f"sensor.{DOMAIN}_{key}") is not None
+        #     and not entity_registry.async_get(f"sensor.{DOMAIN}_{key}").disabled
+        # )
 
         await async_migrate_pv_sensors(hass, mock_config_entry)
 
@@ -209,10 +212,10 @@ class TestPVSensorMigration:
         """Test PV sensor migration when has_pv is True."""
         # Set has_pv to True in options
         mock_config_entry.options = {"has_pv": True}
-        
+
         # Create entity registry
         entity_registry = er.async_get(hass)
-        
+
         # Add some disabled PV sensors to the registry
         for key in PV_SENSOR_KEYS[:3]:  # Just test with first 3 keys
             entity_registry.async_get_or_create(
@@ -238,10 +241,10 @@ class TestPVSensorMigration:
         """Test PV sensor migration with default has_pv (True)."""
         # Don't set has_pv in options (defaults to True)
         mock_config_entry.options = {}
-        
+
         # Create entity registry
         entity_registry = er.async_get(hass)
-        
+
         # Add some disabled PV sensors to the registry
         for key in PV_SENSOR_KEYS[:3]:  # Just test with first 3 keys
             entity_registry.async_get_or_create(
@@ -266,10 +269,10 @@ class TestPVSensorMigration:
     ) -> None:
         """Test PV sensor migration when no PV entities exist."""
         mock_config_entry.options = {"has_pv": False}
-        
+
         # Don't create any entities
         await async_migrate_pv_sensors(hass, mock_config_entry)
-        
+
         # Should complete without error even with no entities to migrate
 
     async def test_pv_sensor_keys_constant(self) -> None:
@@ -290,5 +293,5 @@ class TestPVSensorMigration:
             "technical_status.dcCurrentInjectionS",
             "technical_status.dcCurrentInjectionT",
         ]
-        
+
         assert PV_SENSOR_KEYS == expected_keys

@@ -6,14 +6,13 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from custom_components.eaton_battery_storage.const import DOMAIN
 from custom_components.eaton_battery_storage.config_flow import CONF_INVERTER_SN
+from custom_components.eaton_battery_storage.const import DOMAIN
 
 
 @pytest.fixture
@@ -25,7 +24,7 @@ async def hass():
     hass.config = Mock()
     hass.config.config_dir = "/tmp/test_config"
     hass.config.path = lambda *args: "/tmp/test_config/" + "/".join(args)
-    
+
     # Mock config entries
     hass.config_entries = Mock()
     hass.config_entries.flow = Mock()
@@ -34,20 +33,20 @@ async def hass():
     hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
     hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     hass.config_entries.async_setup = AsyncMock(return_value=True)
-    
+
     # Mock options flow
     hass.config_entries.options = Mock()
     hass.config_entries.options.async_init = AsyncMock()
     hass.config_entries.options.async_configure = AsyncMock()
-    
+
     # Mock services
     hass.services = Mock()
     hass.services.async_register = Mock()
-    
+
     # Mock states
     hass.states = Mock()
     hass.states.async_set = Mock()
-    
+
     return hass
 
 

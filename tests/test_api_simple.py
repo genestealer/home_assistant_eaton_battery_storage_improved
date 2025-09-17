@@ -27,9 +27,9 @@ class TestEatonBatteryAPIBasic:
                 name="Eaton xStorage Home",
                 manufacturer="Eaton",
             )
-            
+
             assert api.host == "192.168.1.100"
-            assert api.username == "test_user" 
+            assert api.username == "test_user"
             assert api.password == "test_password"
             assert api.inverter_sn == "TEST123456"
             assert api.email == "test@example.com"
@@ -50,13 +50,17 @@ class TestEatonBatteryAPIBasic:
             },
         }
 
-        with patch("homeassistant.helpers.storage.Store"), patch("aiohttp.ClientSession") as mock_session:
+        with patch("homeassistant.helpers.storage.Store"), patch(
+            "aiohttp.ClientSession"
+        ) as mock_session:
             mock_response = AsyncMock()
             mock_response.status = 200
             mock_response.content_type = "application/json"
             mock_response.json = AsyncMock(return_value=mock_response_data)
-            
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+
+            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = (
+                mock_response
+            )
 
             api = EatonBatteryAPI(
                 hass=Mock(),
@@ -82,13 +86,17 @@ class TestEatonBatteryAPIBasic:
             "error": "Authentication failed",
         }
 
-        with patch("homeassistant.helpers.storage.Store"), patch("aiohttp.ClientSession") as mock_session:
+        with patch("homeassistant.helpers.storage.Store"), patch(
+            "aiohttp.ClientSession"
+        ) as mock_session:
             mock_response = AsyncMock()
             mock_response.status = 401
             mock_response.content_type = "application/json"
             mock_response.json = AsyncMock(return_value=mock_response_data)
-            
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+
+            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = (
+                mock_response
+            )
 
             api = EatonBatteryAPI(
                 hass=Mock(),
@@ -112,13 +120,17 @@ class TestEatonBatteryAPIBasic:
             "error": "wrong credentials",
         }
 
-        with patch("homeassistant.helpers.storage.Store"), patch("aiohttp.ClientSession") as mock_session:
+        with patch("homeassistant.helpers.storage.Store"), patch(
+            "aiohttp.ClientSession"
+        ) as mock_session:
             mock_response = AsyncMock()
             mock_response.status = 401
             mock_response.content_type = "application/json"
             mock_response.json = AsyncMock(return_value=mock_response_data)
-            
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+
+            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = (
+                mock_response
+            )
 
             api = EatonBatteryAPI(
                 hass=Mock(),
@@ -132,7 +144,9 @@ class TestEatonBatteryAPIBasic:
                 manufacturer="Eaton",
             )
 
-            with pytest.raises(ValueError, match="Authentication failed with wrong credentials"):
+            with pytest.raises(
+                ValueError, match="Authentication failed with wrong credentials"
+            ):
                 await api.connect()
 
     async def test_api_connect_invalid_inverter(self):
@@ -142,13 +156,17 @@ class TestEatonBatteryAPIBasic:
             "error": "Invalid inverter serial number",
         }
 
-        with patch("homeassistant.helpers.storage.Store"), patch("aiohttp.ClientSession") as mock_session:
+        with patch("homeassistant.helpers.storage.Store"), patch(
+            "aiohttp.ClientSession"
+        ) as mock_session:
             mock_response = AsyncMock()
             mock_response.status = 400
             mock_response.content_type = "application/json"
             mock_response.json = AsyncMock(return_value=mock_response_data)
-            
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+
+            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = (
+                mock_response
+            )
 
             api = EatonBatteryAPI(
                 hass=Mock(),
@@ -162,18 +180,24 @@ class TestEatonBatteryAPIBasic:
                 manufacturer="Eaton",
             )
 
-            with pytest.raises(ValueError, match="Authentication failed with invalid inverter"):
+            with pytest.raises(
+                ValueError, match="Authentication failed with invalid inverter"
+            ):
                 await api.connect()
 
     async def test_api_connect_non_json_response(self):
         """Test API connection with non-JSON response."""
-        with patch("homeassistant.helpers.storage.Store"), patch("aiohttp.ClientSession") as mock_session:
+        with patch("homeassistant.helpers.storage.Store"), patch(
+            "aiohttp.ClientSession"
+        ) as mock_session:
             mock_response = AsyncMock()
             mock_response.status = 200
             mock_response.content_type = "text/html"
             mock_response.text = AsyncMock(return_value="<html>Error</html>")
-            
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+
+            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = (
+                mock_response
+            )
 
             api = EatonBatteryAPI(
                 hass=Mock(),
@@ -187,7 +211,9 @@ class TestEatonBatteryAPIBasic:
                 manufacturer="Eaton",
             )
 
-            with pytest.raises(ValueError, match="Authentication failed: non-JSON response"):
+            with pytest.raises(
+                ValueError, match="Authentication failed: non-JSON response"
+            ):
                 await api.connect()
 
 
@@ -214,7 +240,9 @@ class TestEatonBatteryAPIEndpoints:
 
     async def test_get_status_endpoint(self, api_instance):
         """Test get_status method calls correct endpoint."""
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
             mock_request.return_value = {"successful": True, "result": {"status": "ok"}}
 
             result = await api_instance.get_status()
@@ -224,8 +252,13 @@ class TestEatonBatteryAPIEndpoints:
 
     async def test_get_device_endpoint(self, api_instance):
         """Test get_device method calls correct endpoint."""
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
-            mock_request.return_value = {"successful": True, "result": {"device": "info"}}
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "successful": True,
+                "result": {"device": "info"},
+            }
 
             result = await api_instance.get_device()
 
@@ -234,8 +267,13 @@ class TestEatonBatteryAPIEndpoints:
 
     async def test_get_settings_endpoint(self, api_instance):
         """Test get_settings method calls correct endpoint."""
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
-            mock_request.return_value = {"successful": True, "result": {"settings": "data"}}
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "successful": True,
+                "result": {"settings": "data"},
+            }
 
             result = await api_instance.get_settings()
 
@@ -245,19 +283,28 @@ class TestEatonBatteryAPIEndpoints:
     async def test_update_settings_endpoint(self, api_instance):
         """Test update_settings method calls correct endpoint."""
         settings_data = {"setting1": "value1", "setting2": "value2"}
-        
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
+
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
             mock_request.return_value = {"successful": True}
 
             result = await api_instance.update_settings(settings_data)
 
-            mock_request.assert_called_once_with("PUT", "/api/settings", json=settings_data)
+            mock_request.assert_called_once_with(
+                "PUT", "/api/settings", json=settings_data
+            )
             assert result == {"successful": True}
 
     async def test_get_technical_status_endpoint(self, api_instance):
         """Test get_technical_status method calls correct endpoint."""
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
-            mock_request.return_value = {"successful": True, "result": {"technical": "status"}}
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "successful": True,
+                "result": {"technical": "status"},
+            }
 
             result = await api_instance.get_technical_status()
 
@@ -266,8 +313,13 @@ class TestEatonBatteryAPIEndpoints:
 
     async def test_get_notifications_endpoint(self, api_instance):
         """Test get_notifications method calls correct endpoint."""
-        with patch.object(api_instance, "make_request", new_callable=AsyncMock) as mock_request:
-            mock_request.return_value = {"successful": True, "result": {"notifications": "data"}}
+        with patch.object(
+            api_instance, "make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "successful": True,
+                "result": {"notifications": "data"},
+            }
 
             result = await api_instance.get_notifications()
 

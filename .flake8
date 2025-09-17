@@ -1,0 +1,14 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503, E501
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .pytest_cache
+per-file-ignores =
+    # Allow longer lines in the existing integration files that we shouldn't extensively modify
+    custom_components/eaton_battery_storage/*.py:E501
+    # Be strict in test files
+    tests/*.py:E501

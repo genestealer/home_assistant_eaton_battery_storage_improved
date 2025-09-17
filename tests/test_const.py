@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from custom_components.eaton_battery_storage.const import (
     BMS_STATE_MAP,
     CURRENT_MODE_ACTION_MAP,
@@ -34,17 +32,17 @@ class TestConstants:
     def test_current_mode_command_map(self):
         """Test current mode command mappings."""
         assert isinstance(CURRENT_MODE_COMMAND_MAP, dict)
-        
+
         expected_commands = [
             "SET_CHARGE",
-            "SET_BASIC_MODE", 
+            "SET_BASIC_MODE",
             "SET_DISCHARGE",
             "SET_MAXIMIZE_AUTO_CONSUMPTION",
             "SET_VARIABLE_GRID_INJECTION",
             "SET_FREQUENCY_REGULATION",
             "SET_PEAK_SHAVING",
         ]
-        
+
         for command in expected_commands:
             assert command in CURRENT_MODE_COMMAND_MAP
             assert isinstance(CURRENT_MODE_COMMAND_MAP[command], str)
@@ -53,9 +51,9 @@ class TestConstants:
     def test_current_mode_action_map(self):
         """Test current mode action mappings."""
         assert isinstance(CURRENT_MODE_ACTION_MAP, dict)
-        
+
         expected_actions = ["ACTION_CHARGE", "ACTION_DISCHARGE"]
-        
+
         for action in expected_actions:
             assert action in CURRENT_MODE_ACTION_MAP
             assert isinstance(CURRENT_MODE_ACTION_MAP[action], str)
@@ -64,9 +62,9 @@ class TestConstants:
     def test_current_mode_type_map(self):
         """Test current mode type mappings."""
         assert isinstance(CURRENT_MODE_TYPE_MAP, dict)
-        
+
         expected_types = ["MANUAL", "SCHEDULE"]
-        
+
         for mode_type in expected_types:
             assert mode_type in CURRENT_MODE_TYPE_MAP
             assert isinstance(CURRENT_MODE_TYPE_MAP[mode_type], str)
@@ -75,9 +73,9 @@ class TestConstants:
     def test_current_mode_recurrence_map(self):
         """Test current mode recurrence mappings."""
         assert isinstance(CURRENT_MODE_RECURRENCE_MAP, dict)
-        
+
         expected_recurrences = ["MANUAL_EVENT", "DAILY", "WEEKLY"]
-        
+
         for recurrence in expected_recurrences:
             assert recurrence in CURRENT_MODE_RECURRENCE_MAP
             assert isinstance(CURRENT_MODE_RECURRENCE_MAP[recurrence], str)
@@ -86,10 +84,10 @@ class TestConstants:
     def test_operation_mode_map(self):
         """Test operation mode mappings."""
         assert isinstance(OPERATION_MODE_MAP, dict)
-        
+
         expected_modes = [
             "CHARGING",
-            "DISCHARGING", 
+            "DISCHARGING",
             "IDLE",
             "STANDBY",
             "MAXIMIZE_AUTO_CONSUMPTION",
@@ -100,7 +98,7 @@ class TestConstants:
             "OFF",
             "FAULT",
         ]
-        
+
         for mode in expected_modes:
             assert mode in OPERATION_MODE_MAP
             assert isinstance(OPERATION_MODE_MAP[mode], str)
@@ -109,9 +107,9 @@ class TestConstants:
     def test_bms_state_map(self):
         """Test BMS state mappings."""
         assert isinstance(BMS_STATE_MAP, dict)
-        
+
         expected_states = ["BAT_CHARGING", "BAT_DISCHARGING", "BAT_IDLE"]
-        
+
         for state in expected_states:
             assert state in BMS_STATE_MAP
             assert isinstance(BMS_STATE_MAP[state], str)
@@ -127,7 +125,7 @@ class TestConstants:
             OPERATION_MODE_MAP,
             BMS_STATE_MAP,
         ]
-        
+
         for mapping in all_maps:
             for key, value in mapping.items():
                 assert value.strip() != "", f"Empty value for key '{key}'"
@@ -142,19 +140,27 @@ class TestConstants:
             OPERATION_MODE_MAP,
             BMS_STATE_MAP,
         ]
-        
+
         for mapping in all_maps:
             for key, value in mapping.items():
                 # Values should be title case or proper nouns
-                assert value[0].isupper(), f"Value '{value}' for key '{key}' should start with uppercase"
+                assert value[
+                    0
+                ].isupper(), (
+                    f"Value '{value}' for key '{key}' should start with uppercase"
+                )
                 # Should not end with punctuation
-                assert not value.endswith('.'), f"Value '{value}' for key '{key}' should not end with period"
+                assert not value.endswith(
+                    "."
+                ), f"Value '{value}' for key '{key}' should not end with period"
 
     def test_operation_mode_map_aliases(self):
         """Test that operation mode map includes battery state aliases."""
         # Test that battery-specific states map to the same values as general states
         assert OPERATION_MODE_MAP["CHARGING"] == OPERATION_MODE_MAP["BAT_CHARGING"]
-        assert OPERATION_MODE_MAP["DISCHARGING"] == OPERATION_MODE_MAP["BAT_DISCHARGING"]  
+        assert (
+            OPERATION_MODE_MAP["DISCHARGING"] == OPERATION_MODE_MAP["BAT_DISCHARGING"]
+        )
         assert OPERATION_MODE_MAP["IDLE"] == OPERATION_MODE_MAP["BAT_IDLE"]
 
     def test_bms_state_consistency(self):

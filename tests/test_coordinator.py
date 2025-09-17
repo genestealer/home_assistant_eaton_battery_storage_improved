@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.eaton_battery_storage.coordinator import EatonXstorageHomeCoordinator
 from custom_components.eaton_battery_storage.const import DOMAIN
+from custom_components.eaton_battery_storage.coordinator import (
+    EatonXstorageHomeCoordinator,
+)
 
 
 @pytest.mark.asyncio
@@ -120,7 +121,10 @@ class TestEatonXstorageHomeCoordinator:
         result = await coordinator._async_update_data()
 
         assert result["status"] == {"status": "ok", "battery": {"charge": 75}}
-        assert result["device"] == {"inverterSn": "TEST123456", "firmwareVersion": "1.2.3"}
+        assert result["device"] == {
+            "inverterSn": "TEST123456",
+            "firmwareVersion": "1.2.3",
+        }
         assert result["config_state"] == {"config": "state"}
         assert result["settings"] == {"settings": "data"}
         assert result["metrics"] == {"metrics": "data"}
@@ -128,7 +132,9 @@ class TestEatonXstorageHomeCoordinator:
         assert result["schedule"] == {"schedule": "data"}
         assert result["technical_status"] == {"technical": "status"}
         assert result["maintenance_diagnostics"] == {"diagnostics": "data"}
-        assert result["notifications"] == {"notifications": ["notification1", "notification2"]}
+        assert result["notifications"] == {
+            "notifications": ["notification1", "notification2"]
+        }
         assert result["unread_notifications_count"] == {"total": 2}
 
     async def test_async_update_data_api_failure(self, coordinator, mock_api):
@@ -146,7 +152,9 @@ class TestEatonXstorageHomeCoordinator:
         mock_api.get_metrics_daily.return_value = {"result": {"daily": "metrics"}}
         mock_api.get_schedule.return_value = {}
         mock_api.get_technical_status.side_effect = Exception("Tech status error")
-        mock_api.get_maintenance_diagnostics.side_effect = Exception("Diagnostics error")
+        mock_api.get_maintenance_diagnostics.side_effect = Exception(
+            "Diagnostics error"
+        )
         mock_api.get_notifications.return_value = {"result": {"notifications": []}}
         mock_api.get_unread_notifications_count.side_effect = Exception("Count error")
 
@@ -178,7 +186,9 @@ class TestEatonXstorageHomeCoordinator:
         mock_api.get_technical_status.side_effect = Exception("Complete failure")
         mock_api.get_maintenance_diagnostics.side_effect = Exception("Complete failure")
         mock_api.get_notifications.side_effect = Exception("Complete failure")
-        mock_api.get_unread_notifications_count.side_effect = Exception("Complete failure")
+        mock_api.get_unread_notifications_count.side_effect = Exception(
+            "Complete failure"
+        )
 
         with pytest.raises(UpdateFailed, match="Error communicating with API"):
             await coordinator._async_update_data()
@@ -202,9 +212,13 @@ class TestEatonXstorageHomeCoordinator:
 
         assert result["status"] == {}  # No result key when successful=False
         assert result["device"] == {"inverterSn": "TEST123456"}
-        assert result["config_state"] == {"other_key": "value"}  # Whole response when no result key
+        assert result["config_state"] == {
+            "other_key": "value"
+        }  # Whole response when no result key
         assert result["settings"] == {}  # None response becomes empty dict
-        assert result["metrics"] == {"successful": True}  # Whole response when no result key
+        assert result["metrics"] == {
+            "successful": True
+        }  # Whole response when no result key
         assert result["metrics_daily"] == {"daily": "metrics"}
         assert result["schedule"] == {}  # None result becomes empty dict
         assert result["technical_status"] == {"status": "ok"}
@@ -212,7 +226,9 @@ class TestEatonXstorageHomeCoordinator:
         assert result["notifications"] == {}  # None response becomes empty dict
         assert result["unread_notifications_count"] == {"total": 0}
 
-    async def test_async_update_data_specific_error_handling(self, coordinator, mock_api):
+    async def test_async_update_data_specific_error_handling(
+        self, coordinator, mock_api
+    ):
         """Test data update with specific error handling for tech endpoints."""
         # Mock normal endpoints to succeed
         mock_api.get_status.return_value = {"result": {"status": "ok"}}
@@ -222,11 +238,15 @@ class TestEatonXstorageHomeCoordinator:
         mock_api.get_metrics.return_value = {"result": {"metrics": "data"}}
         mock_api.get_metrics_daily.return_value = {"result": {"daily": "metrics"}}
         mock_api.get_schedule.return_value = {"result": {"schedule": "data"}}
-        
+
         # Mock technical endpoints to fail (should be handled gracefully)
-        mock_api.get_technical_status.side_effect = Exception("Requires technician account")
-        mock_api.get_maintenance_diagnostics.side_effect = Exception("Requires technician account")
-        
+        mock_api.get_technical_status.side_effect = Exception(
+            "Requires technician account"
+        )
+        mock_api.get_maintenance_diagnostics.side_effect = Exception(
+            "Requires technician account"
+        )
+
         # Mock notification endpoints
         mock_api.get_notifications.return_value = {"result": {"notifications": []}}
         mock_api.get_unread_notifications_count.return_value = {"result": {"total": 0}}
@@ -241,17 +261,19 @@ class TestEatonXstorageHomeCoordinator:
         assert result["metrics"] == {"metrics": "data"}
         assert result["metrics_daily"] == {"daily": "metrics"}
         assert result["schedule"] == {"schedule": "data"}
-        
+
         # Technical endpoints should return empty dicts on failure
         assert result["technical_status"] == {}
         assert result["maintenance_diagnostics"] == {}
-        
+
         # Notification endpoints should work
         assert result["notifications"] == {"notifications": []}
         assert result["unread_notifications_count"] == {"total": 0}
 
     async def test_coordinator_alias(self):
         """Test that the backward compatibility alias works."""
-        from custom_components.eaton_battery_storage.coordinator import EatonBatteryStorageCoordinator
-        
+        from custom_components.eaton_battery_storage.coordinator import (
+            EatonBatteryStorageCoordinator,
+        )
+
         assert EatonBatteryStorageCoordinator == EatonXstorageHomeCoordinator
