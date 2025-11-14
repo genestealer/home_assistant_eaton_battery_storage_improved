@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -14,7 +14,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -88,6 +88,7 @@ class EatonBatteryStorageBinarySensorEntity(CoordinatorEntity, BinarySensorEntit
     """Eaton Battery Storage binary sensor entity."""
 
     _attr_has_entity_name = True
+    entity_description: EatonBatteryStorageBinarySensorEntityDescription
 
     def __init__(
         self,
@@ -115,4 +116,4 @@ class EatonBatteryStorageBinarySensorEntity(CoordinatorEntity, BinarySensorEntit
     @property
     def device_info(self) -> dict[str, str]:
         """Return device information."""
-        return self.coordinator.device_info
+        return cast(Any, self.coordinator).device_info

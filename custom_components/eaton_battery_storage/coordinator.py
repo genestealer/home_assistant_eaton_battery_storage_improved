@@ -27,6 +27,15 @@ _LOGGER = logging.getLogger(__name__)
 class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching data from the Eaton xStorage Home API."""
 
+    # Attributes populated by platforms (e.g. number.py, switch.py) at runtime
+    # Used to store persisted number configuration values and the Store helper
+    number_values: dict[str, Any]
+    number_store: Any
+
+    # Core coordinator attributes
+    api: EatonBatteryAPI
+    config_entry: Any
+
     def __init__(self, hass: HomeAssistant, api: EatonBatteryAPI, config_entry) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -81,9 +90,17 @@ class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if "inverterSerialNumber" in device_data:
                 device_info["serial_number"] = device_data["inverterSerialNumber"]
                 # Also add as an additional identifier
-                device_info["identifiers"].add(
-                    (DOMAIN, device_data["inverterSerialNumber"])
-                )
+                if (
+                    "identifiers" not in device_info
+                    or device_info["identifiers"] is None
+                ):
+                    device_info["identifiers"] = {
+                        (DOMAIN, device_data["inverterSerialNumber"])
+                    }
+                else:
+                    device_info["identifiers"].add(
+                        (DOMAIN, device_data["inverterSerialNumber"])
+                    )
 
             # Add hardware version (BMS firmware version)
             if "bmsFirmwareVersion" in device_data:

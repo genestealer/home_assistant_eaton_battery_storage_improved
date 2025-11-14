@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 if TYPE_CHECKING:
@@ -40,6 +40,8 @@ class EatonXStorageMarkNotificationsReadButton(CoordinatorEntity, ButtonEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:email-mark-as-unread"
+
+    coordinator: EatonBatteryStorageCoordinator
 
     def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
         """Initialize the button."""
@@ -75,7 +77,11 @@ class EatonXStorageStopCurrentOperationButton(CoordinatorEntity, ButtonEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:stop-circle"
 
+    coordinator: EatonBatteryStorageCoordinator
+
     def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator)
         """Initialize the button."""
         super().__init__(coordinator)
         self._attr_unique_id = (

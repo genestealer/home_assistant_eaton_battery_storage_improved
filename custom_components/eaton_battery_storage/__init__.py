@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import voluptuous as vol
@@ -86,8 +85,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator = EatonXstorageHomeCoordinator(hass, api, entry)
         try:
             await coordinator.async_config_entry_first_refresh()
-        except asyncio.CancelledError:
-            # Let HA handle cancellations (shutdown/reload)
+        except ConfigEntryNotReady:
+            # Re-raise ConfigEntryNotReady as-is
             raise
         except Exception as err:
             # If first refresh fails due to connectivity, mark entry not ready

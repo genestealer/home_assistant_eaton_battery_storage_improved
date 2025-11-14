@@ -14,6 +14,7 @@ from homeassistant.helpers import selector as sel
 
 from .api import EatonBatteryAPI
 from .const import DOMAIN
+from typing import cast
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,8 +86,11 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     entry_data = dict(user_input)
                     entry_data["email"] = email
-                    return self.async_create_entry(
-                        title="Eaton xStorage Home", data=entry_data
+                    return cast(
+                        FlowResult,
+                        self.async_create_entry(
+                            title="Eaton xStorage Home", data=entry_data
+                        ),
                     )
 
         # Determine user_type for form defaults (prefer previously selected value)
@@ -116,7 +120,10 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        return cast(
+            FlowResult,
+            self.async_show_form(step_id="user", data_schema=schema, errors=errors),
+        )
 
     async def _test_connection(
         self,
@@ -225,7 +232,9 @@ class EatonXStorageOptionsFlow(OptionsFlow):
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data=entry_data
                     )
-                    return self.async_create_entry(title="", data={})
+                    from typing import cast
+
+                    return cast(FlowResult, self.async_create_entry(title="", data={}))
 
         current_data = self.config_entry.data
         user_type = (
@@ -265,7 +274,12 @@ class EatonXStorageOptionsFlow(OptionsFlow):
             }
         )
 
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+        from typing import cast
+
+        return cast(
+            FlowResult,
+            self.async_show_form(step_id="init", data_schema=schema, errors=errors),
+        )
 
     async def _test_connection(
         self,

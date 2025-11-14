@@ -16,7 +16,7 @@ DISCHARGE_POWER_WATT = "discharge_power_watt"
 RUN_DURATION = "run_duration"
 
 
-class NumberEntityDefinition(TypedDict):
+class NumberEntityDefinition(TypedDict, total=False):
     """Type definition for number entity configuration."""
 
     key: str
@@ -26,6 +26,7 @@ class NumberEntityDefinition(TypedDict):
     step: int
     unit: str
     device_class: str
+    default: int | None
 
 
 NUMBER_ENTITIES: list[NumberEntityDefinition] = [
