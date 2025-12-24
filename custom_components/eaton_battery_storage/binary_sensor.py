@@ -97,7 +97,8 @@ class EatonBatteryStorageBinarySensorEntity(CoordinatorEntity, BinarySensorEntit
         """Initialize the binary sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"eaton_xstorage_{description.key}"
+        # Ensure unique IDs are scoped to the config entry to support multiple devices
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{description.key}"
 
     @property
     def is_on(self) -> bool | None:
