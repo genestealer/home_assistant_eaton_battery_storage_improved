@@ -158,9 +158,11 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
                     if isinstance(device_data, dict)
                     else None
                 )
-            except Exception:  # best-effort; serial not strictly required
-                serial = None
-            return serial
+            except Exception as exc:  # best-effort; serial not strictly required  
+                _LOGGER.debug(  
+                    "Failed to retrieve device serial number: %s",  
+                    exc,  
+                )  
         except ValueError as err:
             _LOGGER.warning("Authentication failed: %s", err)
             raise ValueError("Invalid credentials") from err
@@ -323,7 +325,8 @@ class EatonXStorageOptionsFlow(OptionsFlow):
                     if isinstance(device_data, dict)
                     else None
                 )
-            except Exception:
+            except Exception as exc:  
+                _LOGGER.debug("Failed to retrieve device serial number: %s", exc)  
                 serial = None
             return serial
         except ValueError as err:
