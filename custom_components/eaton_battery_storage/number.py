@@ -109,7 +109,10 @@ class EatonBatteryNumberEntity(CoordinatorEntity, NumberEntity):
         """Initialize the entity."""
         super().__init__(coordinator)
         self._key = description["key"]
-        self._attr_unique_id = f"eaton_battery_{description['key']}"
+        # Scope unique ID to config entry to support multiple devices
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{description['key']}"
+        )
         self._attr_name = description["name"]
         self._attr_native_min_value = float(description["min"])
         self._attr_native_max_value = float(description["max"])
@@ -225,7 +228,10 @@ class EatonXStorageHouseConsumptionThresholdNumber(CoordinatorEntity, NumberEnti
     def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
         """Initialize the house consumption threshold number entity."""
         super().__init__(coordinator)
-        self._attr_unique_id = "eaton_xstorage_set_house_consumption_threshold"
+        # Scope unique ID to config entry for multi-device setups
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_set_house_consumption_threshold"
+        )
         self._attr_name = "House consumption threshold"
         self._optimistic_value: int | None = None
 
@@ -371,7 +377,10 @@ class EatonXStorageBatteryBackupLevelNumber(CoordinatorEntity, NumberEntity):
     def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
         """Initialize the battery backup level number entity."""
         super().__init__(coordinator)
-        self._attr_unique_id = "eaton_xstorage_set_battery_backup_level"
+        # Scope unique ID to config entry for multi-device setups
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_set_battery_backup_level"
+        )
         self._attr_name = "Battery backup level"
         self._optimistic_value: int | None = None
 

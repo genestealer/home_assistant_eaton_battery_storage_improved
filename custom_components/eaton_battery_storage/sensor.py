@@ -731,11 +731,13 @@ class EatonXStorageNotificationsSensor(
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_name = "Notifications"
-    _attr_unique_id = "eaton_xstorage_notifications"
+    # Scope unique ID to config entry for multi-device support
+    _attr_unique_id = None
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the notifications sensor."""
         super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_notifications"
 
     @property
     def native_value(self) -> int:
@@ -813,7 +815,10 @@ class EatonXStorageSensor(
         )
         self._accuracy_warning = description.get("accuracy_warning", False)
         self._precision = description.get("precision")
-        self._attr_unique_id = f"eaton_xstorage_{key.replace('.', '_')}"
+        # Ensure per-entry unique IDs to avoid collisions across multiple devices
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{key.replace('.', '_')}"
+        )
 
         # Apply icon from description if provided
         if description.get("icon"):
