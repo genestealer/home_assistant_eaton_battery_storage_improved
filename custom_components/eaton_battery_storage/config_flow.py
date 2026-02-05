@@ -52,13 +52,9 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
             if user_type == "tech" and not inverter_sn:
                 errors[CONF_INVERTER_SN] = "required_inverter_sn"
             else:
-                # Set unique ID (host for customer; host+sn for technician)
-                unique_id = host if user_type == "customer" else f"{host}_{inverter_sn}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-
                 try:
-                    await self._test_connection(
+                    # Test connection and retrieve inverter serial if available
+                    device_serial = await self._test_connection(
                         host, username, password, inverter_sn, email, user_type
                     )
                 except ConnectionError:
@@ -83,6 +79,12 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
                     _LOGGER.exception("Unexpected error during connection test")
                     errors["base"] = "unknown"
                 else:
+                    # Determine a per-device unique_id using inverter serial if present
+                    unique_suffix = device_serial or inverter_sn or username
+                    unique_id = f"{host}_{unique_suffix}" if unique_suffix else host
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured()
+
                     entry_data = dict(user_input)
                     entry_data["email"] = email
                     return self.async_create_entry(
@@ -126,8 +128,8 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
         inverter_sn: str,
         email: str,
         user_type: str = "tech",
-    ) -> None:
-        """Test connection to the device."""
+    ) -> str | None:
+        """Test connection to the device and return inverter serial if available."""
         api = EatonBatteryAPI(
             hass=self.hass,
             host=host,
@@ -143,6 +145,24 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             await api.connect()
+            # Attempt to read device information to extract serial number
+            try:
+                device_resp = await api.get_device()
+                device_data = (
+                    device_resp.get("result", {})
+                    if isinstance(device_resp, dict)
+                    else device_resp
+                )
+                serial = (
+                    device_data.get("inverterSerialNumber")
+                    if isinstance(device_data, dict)
+                    else None
+                )
+            except Exception as exc:  # best-effort; serial not strictly required  
+                _LOGGER.debug(  
+                    "Failed to retrieve device serial number: %s",  
+                    exc,  
+                )  
         except ValueError as err:
             _LOGGER.warning("Authentication failed: %s", err)
             raise ValueError("Invalid credentials") from err
@@ -275,8 +295,8 @@ class EatonXStorageOptionsFlow(OptionsFlow):
         inverter_sn: str,
         email: str,
         user_type: str = "tech",
-    ) -> None:
-        """Test connection to the device."""
+    ) -> str | None:
+        """Test connection to the device and return inverter serial if available."""
         api = EatonBatteryAPI(
             hass=self.hass,
             host=host,
@@ -292,6 +312,23 @@ class EatonXStorageOptionsFlow(OptionsFlow):
 
         try:
             await api.connect()
+            # Try to fetch the device serial to allow per-device unique_id
+            try:
+                device_resp = await api.get_device()
+                device_data = (
+                    device_resp.get("result", {})
+                    if isinstance(device_resp, dict)
+                    else device_resp
+                )
+                serial = (
+                    device_data.get("inverterSerialNumber")
+                    if isinstance(device_data, dict)
+                    else None
+                )
+            except Exception as exc:  
+                _LOGGER.debug("Failed to retrieve device serial number: %s", exc)  
+                serial = None
+            return serial
         except ValueError as err:
             _LOGGER.warning("Authentication failed: %s", err)
             raise ValueError("Invalid credentials") from err
