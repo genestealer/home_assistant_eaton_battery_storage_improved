@@ -23,10 +23,32 @@ jobs:
 
       - name: Validation with hassfest
         uses: "home-assistant/actions/hassfest@master"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check custom_components/
+
+      - name: Run ruff format check
+        run: ruff format --check custom_components/
+
   release:
     name: Create Release Zip
     runs-on: ubuntu-latest
-    needs: hacs
+    needs: [hacs, lint]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout code

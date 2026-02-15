@@ -36,6 +36,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ACCOUNT_TYPE_TECHNICIAN,
     BMS_STATE_MAP,
     CURRENT_MODE_ACTION_MAP,
     CURRENT_MODE_COMMAND_MAP,
@@ -700,9 +701,9 @@ async def async_setup_entry(
     coordinator: EatonXstorageHomeCoordinator = config_entry.runtime_data
     has_pv = config_entry.data.get("has_pv", False)
     user_type = config_entry.data.get(
-        "user_type", "tech"
+        "user_type", ACCOUNT_TYPE_TECHNICIAN
     )  # Default to tech for backward compatibility
-    is_technician = user_type == "tech"
+    is_technician = user_type == ACCOUNT_TYPE_TECHNICIAN
 
     # Create sensors based on account type and PV configuration
     entities: list[EatonXStorageSensor | EatonXStorageNotificationsSensor] = []
@@ -731,11 +732,13 @@ class EatonXStorageNotificationsSensor(
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_name = "Notifications"
-    _attr_unique_id = "eaton_xstorage_notifications"
+    # Scope unique ID to config entry for multi-device support
+    _attr_unique_id = None
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the notifications sensor."""
         super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_notifications"
 
     @property
     def native_value(self) -> int:
@@ -813,7 +816,10 @@ class EatonXStorageSensor(
         )
         self._accuracy_warning = description.get("accuracy_warning", False)
         self._precision = description.get("precision")
-        self._attr_unique_id = f"eaton_xstorage_{key.replace('.', '_')}"
+        # Ensure per-entry unique IDs to avoid collisions across multiple devices
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{key.replace('.', '_')}"
+        )
 
         # Apply icon from description if provided
         if description.get("icon"):
