@@ -2,6 +2,8 @@
 
 A Home Assistant custom component for integrating Eaton's xStorage Home battery storage system.
 
+![Integration Configuration](images/integration-configuration.png)
+
 ## Credits
 
 - Original author and maintainer: [greyfold](https://github.com/greyfold)
