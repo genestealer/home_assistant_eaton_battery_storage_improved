@@ -15,7 +15,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.reload import async_reload_integration_platforms
 
 from .api import EatonBatteryAPI
-from .const import DOMAIN
+from .const import ACCOUNT_TYPE_TECHNICIAN, DOMAIN
 from .coordinator import EatonXstorageHomeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         # Get user type, defaulting to tech for backward compatibility
-        user_type = entry.data.get("user_type", "tech")
+        user_type = entry.data.get("user_type", ACCOUNT_TYPE_TECHNICIAN)
 
         api = EatonBatteryAPI(
             username=entry.data["username"],
@@ -114,10 +114,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ConfigEntryNotReady:
         # Propagate without extra stack trace to avoid noisy duplicate logs
         raise
-    except Exception as ex:
+    except (OSError, TimeoutError) as ex:
         _LOGGER.exception("Unexpected error during Eaton xStorage Home setup: %s", ex)
-        # Any remaining unexpected error during setup should be treated as not ready
-        # to let Home Assistant handle retries gracefully.
+        # Recoverable connectivity error during setup — let Home Assistant retry.
         raise ConfigEntryNotReady(f"Integration not ready: {ex}") from ex
     else:
         return True

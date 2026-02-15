@@ -10,6 +10,8 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .helpers import transform_settings_for_put
+
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
@@ -115,22 +117,7 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
             current_settings = current_settings_response.get("result", {})
 
             # Transform composite objects expected as strings on PUT
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
+            transform_settings_for_put(current_settings)
 
             # Determine parameters based on selected mode and available helper/settings values
             command = self._option_to_cmd[option]
@@ -198,10 +185,6 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
         except Exception as e:
             _LOGGER.error("Error setting default operation mode: %s", e)
             await self.coordinator.async_request_refresh()
-
-    def select_option(self, option: str) -> None:
-        """Change the selected option."""
-        asyncio.create_task(self.async_select_option(option))
 
 
 class EatonXStorageCurrentOperationModeSelect(CoordinatorEntity, SelectEntity):

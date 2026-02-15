@@ -26,6 +26,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .helpers import transform_settings_for_put
+
 from .const import DOMAIN
 from .number_constants import NUMBER_ENTITIES
 
@@ -296,25 +298,7 @@ class EatonXStorageHouseConsumptionThresholdNumber(CoordinatorEntity, NumberEnti
             current_settings = current_settings_response.get("result", {})
 
             # Transform the settings data to match PUT API expectations
-            # The GET API returns objects, but PUT API expects strings/primitives
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
+            transform_settings_for_put(current_settings)
 
             # Update only the energySavingMode.houseConsumptionThreshold field
             if "energySavingMode" not in current_settings:
@@ -439,22 +423,7 @@ class EatonXStorageBatteryBackupLevelNumber(CoordinatorEntity, NumberEntity):
             current_settings = current_settings_response.get("result", {})
 
             # Transform composite objects
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
+            transform_settings_for_put(current_settings)
 
             current_settings["bmsBackupLevel"] = int(value)
 

@@ -14,12 +14,13 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import EatonBatteryAPI
-from .const import DOMAIN
+from .const import ACCOUNT_TYPE_TECHNICIAN, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching data from the Eaton xStorage Home API."""
 
-    def __init__(self, hass: HomeAssistant, api: EatonBatteryAPI, config_entry) -> None:
+    def __init__(self, hass: HomeAssistant, api: EatonBatteryAPI, config_entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -37,19 +38,6 @@ class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=config_entry,
         )
         self.api = api
-        self.config_entry = config_entry
-
-    @property
-    def battery_level(self) -> int | None:
-        """Return the current battery level as a percentage."""
-        if not self.data:
-            return None
-        try:
-            return (
-                self.data.get("status", {}).get("energyFlow", {}).get("stateOfCharge")
-            )
-        except (AttributeError, KeyError):
-            return None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -148,8 +136,8 @@ class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     results[endpoint] = {}
 
             # Technical data that requires technician account
-            user_type = self.config_entry.data.get("user_type", "tech")
-            if user_type == "tech":
+            user_type = self.config_entry.data.get("user_type", ACCOUNT_TYPE_TECHNICIAN)
+            if user_type == ACCOUNT_TYPE_TECHNICIAN:
                 for endpoint, method in [
                     ("technical_status", self.api.get_technical_status),
                     ("maintenance_diagnostics", self.api.get_maintenance_diagnostics),

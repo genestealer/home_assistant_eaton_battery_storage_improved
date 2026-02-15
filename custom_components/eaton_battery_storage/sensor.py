@@ -36,6 +36,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ACCOUNT_TYPE_TECHNICIAN,
     BMS_STATE_MAP,
     CURRENT_MODE_ACTION_MAP,
     CURRENT_MODE_COMMAND_MAP,
@@ -700,9 +701,9 @@ async def async_setup_entry(
     coordinator: EatonXstorageHomeCoordinator = config_entry.runtime_data
     has_pv = config_entry.data.get("has_pv", False)
     user_type = config_entry.data.get(
-        "user_type", "tech"
+        "user_type", ACCOUNT_TYPE_TECHNICIAN
     )  # Default to tech for backward compatibility
-    is_technician = user_type == "tech"
+    is_technician = user_type == ACCOUNT_TYPE_TECHNICIAN
 
     # Create sensors based on account type and PV configuration
     entities: list[EatonXStorageSensor | EatonXStorageNotificationsSensor] = []

@@ -14,6 +14,8 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .helpers import transform_settings_for_put
+
 if TYPE_CHECKING:
     from .coordinator import EatonBatteryStorageCoordinator
 
@@ -135,14 +137,6 @@ class EatonXStoragePowerSwitch(CoordinatorEntity, SwitchEntity):
             await self.coordinator.async_request_refresh()
             raise HomeAssistantError("Failed to turn off device") from exc
 
-    def turn_on(self, **kwargs) -> None:
-        """Turn the device on (sync wrapper)."""
-        asyncio.create_task(self.async_turn_on(**kwargs))
-
-    def turn_off(self, **kwargs) -> None:
-        """Turn the device off (sync wrapper)."""
-        asyncio.create_task(self.async_turn_off(**kwargs))
-
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         # Clear optimistic state when we get real data from coordinator
@@ -220,25 +214,7 @@ class EatonXStorageEnergySavingModeSwitch(CoordinatorEntity, SwitchEntity):
             current_settings = current_settings_response.get("result", {})
 
             # Transform the settings data to match PUT API expectations
-            # The GET API returns objects, but PUT API expects strings/primitives
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
+            transform_settings_for_put(current_settings)
 
             # Update only the energySavingMode.enabled field
             if "energySavingMode" not in current_settings:
@@ -292,25 +268,7 @@ class EatonXStorageEnergySavingModeSwitch(CoordinatorEntity, SwitchEntity):
             current_settings = current_settings_response.get("result", {})
 
             # Transform the settings data to match PUT API expectations
-            # The GET API returns objects, but PUT API expects strings/primitives
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
+            transform_settings_for_put(current_settings)
 
             # Update only the energySavingMode.enabled field
             if "energySavingMode" not in current_settings:
@@ -343,14 +301,6 @@ class EatonXStorageEnergySavingModeSwitch(CoordinatorEntity, SwitchEntity):
             self._optimistic_state = None
             await self.coordinator.async_request_refresh()
             raise HomeAssistantError("Failed to disable energy saving mode") from exc
-
-    def turn_on(self, **kwargs) -> None:
-        """Turn energy saving mode on (sync wrapper)."""
-        asyncio.create_task(self.async_turn_on(**kwargs))
-
-    def turn_off(self, **kwargs) -> None:
-        """Turn energy saving mode off (sync wrapper)."""
-        asyncio.create_task(self.async_turn_off(**kwargs))
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""

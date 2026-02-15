@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any
 
@@ -97,7 +97,7 @@ class EatonBatteryAPI:
                     and "token" in result.get("result", {})
                 ):
                     self.access_token = result["result"]["token"]
-                    self.token_expiration = datetime.utcnow() + timedelta(minutes=55)
+                    self.token_expiration = datetime.now(timezone.utc) + timedelta(minutes=55)
                     await self.store_token()
                     _LOGGER.info("Connected successfully. Bearer token acquired.")
                 elif "error" in result:
@@ -154,7 +154,7 @@ class EatonBatteryAPI:
         if (
             not self.access_token
             or not self.token_expiration
-            or datetime.utcnow() >= self.token_expiration
+            or datetime.now(timezone.utc) >= self.token_expiration
         ):
             _LOGGER.info("Token missing or expired. Re-authenticating...")
             await self.refresh_token()
