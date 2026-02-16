@@ -68,7 +68,8 @@ async def _async_test_connection(
         return serial
     except ValueError as err:
         _LOGGER.warning("Authentication failed: %s", err)
-        raise ValueError("Invalid credentials") from err
+        # Re-raise original error so _classify_auth_error can inspect the message
+        raise
     except (ConnectionError, OSError) as err:
         _LOGGER.error("Connection failed: %s", err)
         raise ConnectionError("Cannot connect to device") from err
@@ -83,8 +84,9 @@ async def _async_test_connection(
 
 def _classify_auth_error(err: ValueError) -> str:
     """Map a ValueError from connection test to a translation error key."""
-    error_message = str(err)
-    if "Error during authentication: 10" in error_message:
+    error_message = str(err).strip()
+    # Account locked: API returns error code "10"; match both formats
+    if error_message == "10" or "Error during authentication: 10" in error_message:
         return "auth_error_locked"
     if "wrong credentials" in error_message.lower():
         return "err_wrong_credentials"

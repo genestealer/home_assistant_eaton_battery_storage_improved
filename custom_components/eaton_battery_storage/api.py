@@ -142,7 +142,12 @@ class EatonBatteryAPI:
             self.access_token = data.get("access_token")
             expiration_str = data.get("token_expiration")
             if expiration_str:
-                self.token_expiration = datetime.fromisoformat(expiration_str)
+                # Normalize naive datetimes from older versions to timezone-aware
+                loaded_dt = datetime.fromisoformat(expiration_str)
+                if loaded_dt.tzinfo is None:
+                    self.token_expiration = loaded_dt.replace(tzinfo=timezone.utc)
+                else:
+                    self.token_expiration = loaded_dt
 
     async def refresh_token(self) -> None:
         """Refresh the access token."""
