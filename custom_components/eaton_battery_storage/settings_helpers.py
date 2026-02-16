@@ -14,6 +14,7 @@ def transform_settings_for_put(settings: dict[str, Any]) -> dict[str, Any]:
     The GET API returns composite objects for country, city, and timezone,
     but the PUT API expects string/primitive values.
     """
+    settings = dict(settings)
     if "country" in settings and isinstance(settings["country"], dict):
         settings["country"] = settings["country"].get("geonameId", "")
 
