@@ -48,6 +48,11 @@ from .coordinator import EatonXstorageHomeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _translation_key_from_key(key: str) -> str:
+    """Build a stable translation key from a sensor data key."""
+    return key.replace(".", "_").replace("-", "_").lower()
+
 SENSOR_TYPES = {
     # status endpoint
     "status.currentMode.command": {
@@ -730,7 +735,7 @@ class EatonXStorageNotificationsSensor(
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_name = "Notifications"
+    _attr_translation_key = "notifications"
     # Scope unique ID to config entry for multi-device support
     _attr_unique_id = None
 
@@ -806,7 +811,8 @@ class EatonXStorageSensor(
         super().__init__(coordinator)
         self._key = key
         # Be robust to missing fields in description
-        self._attr_name = description.get("name", key)
+        self._attr_translation_key = _translation_key_from_key(self._key)
+        self._name_for_logs = description.get("name", key)
         self._attr_native_unit_of_measurement = description.get("unit")
         self._attr_device_class = description.get("device_class")
         self._attr_entity_category = description.get("entity_category")
@@ -849,7 +855,7 @@ class EatonXStorageSensor(
             if self._accuracy_warning:
                 _LOGGER.debug(
                     "Sensor %s (%s) - %s",
-                    self._attr_name,
+                    self._name_for_logs,
                     self._key,
                     POWER_ACCURACY_WARNING,
                 )

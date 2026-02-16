@@ -51,7 +51,7 @@ class EatonXStoragePowerSwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         # Scope unique ID to the config entry for multi-device setups
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_inverter_power"
-        self._attr_name = "Inverter power"
+        self._attr_translation_key = "inverter_power"
         self._optimistic_state: bool | None = None
 
     @property
@@ -158,7 +158,7 @@ class EatonXStorageEnergySavingModeSwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         # Scope unique ID to the config entry for multi-device setups
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_energy_saving_mode"
-        self._attr_name = "Energy saving mode"
+        self._attr_translation_key = "energy_saving_mode"
         self._optimistic_state: bool | None = None
 
     @property

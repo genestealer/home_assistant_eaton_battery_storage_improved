@@ -114,7 +114,7 @@ class EatonBatteryNumberEntity(CoordinatorEntity, NumberEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_{description['key']}"
         )
-        self._attr_name = description["name"]
+        self._attr_translation_key = str(description["translation_key"])
         self._attr_native_min_value = float(description["min"])
         self._attr_native_max_value = float(description["max"])
         self._attr_native_step = float(description["step"])
@@ -233,7 +233,7 @@ class EatonXStorageHouseConsumptionThresholdNumber(CoordinatorEntity, NumberEnti
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_set_house_consumption_threshold"
         )
-        self._attr_name = "House consumption threshold"
+        self._attr_translation_key = "house_consumption_threshold"
         self._optimistic_value: int | None = None
 
     @property
@@ -357,7 +357,7 @@ class EatonXStorageBatteryBackupLevelNumber(CoordinatorEntity, NumberEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_set_battery_backup_level"
         )
-        self._attr_name = "Battery backup level"
+        self._attr_translation_key = "battery_backup_level"
         self._optimistic_value: int | None = None
 
     @property
