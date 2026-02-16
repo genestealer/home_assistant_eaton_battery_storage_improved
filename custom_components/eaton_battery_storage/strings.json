@@ -1,0 +1,88 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "description": "Configure your Eaton xStorage Home system. Choose Customer for basic access or Technician for advanced diagnostics (requires technician credentials and inverter serial number).",
+                "data": {
+                    "host": "Device IP Address or Hostname",
+                    "user_type": "Account Type",
+                    "username": "Username",
+                    "password": "Password",
+                    "inverter_sn": "Inverter Serial Number (Technician only)",
+                    "has_pv": "Enable PV Solar Panel Sensors (only if you have solar panels)"
+                },
+                "data_description": {
+                    "user_type": "Customer accounts have basic access. Technician accounts provide advanced diagnostics but require the inverter serial number and technician credentials. Defaults: Customer — user/user; Technician — admin/jlwgK41G.",
+                    "has_pv": "Check this box only if you have solar panels connected to your Eaton xStorage system. This will create additional sensors for PV monitoring (voltage, current, production). Leave unchecked if you only have battery storage without solar panels."
+                }
+            },
+            "reauth_confirm": {
+                "description": "Re-authenticate with your Eaton xStorage Home system. Your credentials may have expired or changed.",
+                "data": {
+                    "host": "Device IP Address or Hostname",
+                    "user_type": "Account Type",
+                    "username": "Username",
+                    "password": "Password",
+                    "inverter_sn": "Inverter Serial Number (Technician only)",
+                    "has_pv": "Enable PV Solar Panel Sensors (only if you have solar panels)"
+                },
+                "data_description": {
+                    "user_type": "Customer accounts have basic access. Technician accounts provide advanced diagnostics but require the inverter serial number and technician credentials.",
+                    "has_pv": "Check this box only if you have solar panels connected to your Eaton xStorage system."
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect to the device. Please check your network connection and device settings.",
+            "invalid_auth": "Authentication failed. Please check your credentials.",
+            "err_invalid_inverter_sn": "Invalid inverter serial number.",
+            "err_wrong_credentials": "Wrong username or password.",
+            "auth_error_locked": "Your account was locked due to too many failed login attempts. Please try again in 10 minutes.",
+            "auth_unexpected_response": "Authentication failed with an unexpected response from the device.",
+            "auth_non_json_response": "Authentication failed: the device returned a non-JSON response.",
+            "required_inverter_sn": "Inverter serial number required for technician account.",
+            "unknown": "Unexpected error occurred during setup."
+        },
+        "abort": {
+            "single_instance_allowed": "Only a single instance is allowed.",
+            "reauth_successful": "Re-authentication was successful."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "description": "Update your Eaton xStorage Home configuration. Choose Customer for basic access or Technician for advanced diagnostics. Enable PV sensors only if you have solar panels connected to your system.",
+                "data": {
+                    "host": "Device IP Address or Hostname",
+                    "user_type": "Account Type",
+                    "username": "Username",
+                    "password": "Password",
+                    "inverter_sn": "Inverter Serial Number (Technician only)",
+                    "has_pv": "Enable PV Solar Panel Sensors (only if you have solar panels)"
+                },
+                "data_description": {
+                    "user_type": "Customer accounts have basic access. Technician accounts provide advanced diagnostics but require the inverter serial number and technician credentials.",
+                    "has_pv": "Check this box only if you have solar panels connected to your Eaton xStorage system. This will create additional sensors for PV monitoring (voltage, current, production). Leave unchecked if you only have battery storage without solar panels."
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect to the device. Please check your network connection and device settings.",
+            "invalid_auth": "Authentication failed. Please check your credentials.",
+            "err_invalid_inverter_sn": "Invalid inverter serial number.",
+            "err_wrong_credentials": "Wrong username or password.",
+            "auth_error_locked": "Your account was locked due to too many failed login attempts. Please try again in 10 minutes.",
+            "auth_unexpected_response": "Authentication failed with an unexpected response from the device.",
+            "auth_non_json_response": "Authentication failed: the device returned a non-JSON response.",
+            "required_inverter_sn": "Inverter serial number required for technician account.",
+            "unknown": "Unexpected error occurred during setup."
+        }
+    },
+    "system_health": {
+        "info": {
+            "device_reachable": "Device Reachable",
+            "api_host": "API Host",
+            "last_successful_update": "Last Successful Update"
+        }
+    }
+}

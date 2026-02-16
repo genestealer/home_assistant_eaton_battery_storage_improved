@@ -6,7 +6,9 @@
     "@genestealer"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "system_health"
+  ],
   "documentation": "https://github.com/greyfold/home_assistant_eaton_battery_storage",
   "integration_type": "device",
   "iot_class": "local_polling",

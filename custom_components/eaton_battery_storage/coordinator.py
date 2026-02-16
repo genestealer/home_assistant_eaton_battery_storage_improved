@@ -37,19 +37,6 @@ class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=config_entry,
         )
         self.api = api
-        self.config_entry = config_entry
-
-    @property
-    def battery_level(self) -> int | None:
-        """Return the current battery level as a percentage."""
-        if not self.data:
-            return None
-        try:
-            return (
-                self.data.get("status", {}).get("energyFlow", {}).get("stateOfCharge")
-            )
-        except (AttributeError, KeyError):
-            return None
 
     @property
     def device_info(self) -> DeviceInfo:
