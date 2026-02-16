@@ -44,8 +44,7 @@
             "unknown": "Unexpected error occurred during setup."
         },
         "abort": {
-            "single_instance_allowed": "Only a single instance is allowed.",
-            "reauth_successful": "Re-authentication was successful."
+            "single_instance_allowed": "Only a single instance is allowed."
         }
     },
     "options": {
