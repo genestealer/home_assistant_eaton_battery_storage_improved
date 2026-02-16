@@ -47,7 +47,7 @@ class EatonXStorageMarkNotificationsReadButton(CoordinatorEntity, ButtonEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_mark_notifications_read"
         )
-        self._attr_name = "Mark all notifications read"
+        self._attr_translation_key = "mark_notifications_read"
 
     @property
     def device_info(self):
@@ -81,7 +81,7 @@ class EatonXStorageStopCurrentOperationButton(CoordinatorEntity, ButtonEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_stop_current_operation"
         )
-        self._attr_name = "Stop current operation"
+        self._attr_translation_key = "stop_current_operation"
 
     @property
     def device_info(self):

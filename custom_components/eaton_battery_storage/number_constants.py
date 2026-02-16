@@ -21,6 +21,7 @@ class NumberEntityDefinition(TypedDict):
 
     key: str
     name: str
+    translation_key: str
     min: int
     max: int
     step: int
@@ -32,6 +33,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": CHARGE_DURATION,
         "name": "Charge Duration",
+        "translation_key": "charge_duration",
         "min": 1,
         "max": 12,
         "step": 1,
@@ -42,6 +44,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": CHARGE_END_SOC,
         "name": "Charge Target SOC",
+        "translation_key": "charge_end_soc",
         "min": 0,
         "max": 100,
         "step": 1,
@@ -52,6 +55,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": CHARGE_POWER,
         "name": "Charge Power (%)",
+        "translation_key": "charge_power",
         "min": 5,
         "max": 100,
         "step": 1,
@@ -62,6 +66,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": CHARGE_POWER_WATT,
         "name": "Charge Power (Watt)",
+        "translation_key": "charge_power_watt",
         "min": 180,
         "max": 3600,
         "step": 1,
@@ -72,6 +77,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": DISCHARGE_DURATION,
         "name": "Discharge Duration",
+        "translation_key": "discharge_duration",
         "min": 1,
         "max": 12,
         "step": 1,
@@ -82,6 +88,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": DISCHARGE_END_SOC,
         "name": "Discharge Target SOC",
+        "translation_key": "discharge_end_soc",
         "min": 0,
         "max": 100,
         "step": 1,
@@ -92,6 +99,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": DISCHARGE_POWER,
         "name": "Discharge Power (%)",
+        "translation_key": "discharge_power",
         "min": 5,
         "max": 100,
         "step": 1,
@@ -102,6 +110,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": DISCHARGE_POWER_WATT,
         "name": "Discharge Power (Watt)",
+        "translation_key": "discharge_power_watt",
         "min": 180,
         "max": 3600,
         "step": 1,
@@ -112,6 +121,7 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
     {
         "key": RUN_DURATION,
         "name": "Run Duration",
+        "translation_key": "run_duration",
         "min": 1,
         "max": 12,
         "step": 1,

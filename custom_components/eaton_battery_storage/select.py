@@ -59,7 +59,7 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_default_operation_mode"
         )
-        self._attr_name = "Default operation mode"
+        self._attr_translation_key = "default_operation_mode"
         self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS]
         self._option_to_cmd = {label: cmd for (label, cmd) in DEFAULT_MODE_OPTIONS}
         self._cmd_to_label = {cmd: label for (label, cmd) in DEFAULT_MODE_OPTIONS}
@@ -198,7 +198,7 @@ class EatonXStorageCurrentOperationModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_current_operation_mode"
         )
-        self._attr_name = "Current operation mode"
+        self._attr_translation_key = "current_operation_mode"
         self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS] + [
             "Manual Charge",
             "Manual Discharge",
