@@ -42,7 +42,7 @@ class EatonXStorageNotificationEvent(CoordinatorEntity, EventEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_notifications_event"
         )
-        self._attr_name = "Notifications event"
+        self._attr_translation_key = "notifications_event"
         self._seen: set[str] = set()
         self._primed = False
         # Keep track of the last emitted event type to expose a friendly state

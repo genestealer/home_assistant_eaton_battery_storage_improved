@@ -10,6 +10,8 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .settings_helpers import async_get_and_transform_settings
+
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
@@ -57,7 +59,7 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_default_operation_mode"
         )
-        self._attr_name = "Default operation mode"
+        self._attr_translation_key = "default_operation_mode"
         self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS]
         self._option_to_cmd = {label: cmd for (label, cmd) in DEFAULT_MODE_OPTIONS}
         self._cmd_to_label = {cmd: label for (label, cmd) in DEFAULT_MODE_OPTIONS}
@@ -106,31 +108,11 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
 
         try:
             # Always fetch the latest settings
-            current_settings_response = await self.coordinator.api.get_settings()
-            if not current_settings_response or not current_settings_response.get(
-                "result"
-            ):
-                _LOGGER.error("Failed to get current settings from API")
+            current_settings = await async_get_and_transform_settings(
+                self.coordinator.api
+            )
+            if current_settings is None:
                 return
-            current_settings = current_settings_response.get("result", {})
-
-            # Transform composite objects expected as strings on PUT
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
 
             # Determine parameters based on selected mode and available helper/settings values
             command = self._option_to_cmd[option]
@@ -199,10 +181,6 @@ class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
             _LOGGER.error("Error setting default operation mode: %s", e)
             await self.coordinator.async_request_refresh()
 
-    def select_option(self, option: str) -> None:
-        """Change the selected option."""
-        asyncio.create_task(self.async_select_option(option))
-
 
 class EatonXStorageCurrentOperationModeSelect(CoordinatorEntity, SelectEntity):
     """Select entity to send immediate operation mode commands.
@@ -220,7 +198,7 @@ class EatonXStorageCurrentOperationModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_current_operation_mode"
         )
-        self._attr_name = "Current operation mode"
+        self._attr_translation_key = "current_operation_mode"
         self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS] + [
             "Manual Charge",
             "Manual Discharge",

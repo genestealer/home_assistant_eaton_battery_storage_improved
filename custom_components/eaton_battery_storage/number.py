@@ -28,6 +28,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .number_constants import NUMBER_ENTITIES
+from .settings_helpers import async_get_and_transform_settings
 
 if TYPE_CHECKING:
     from .coordinator import EatonBatteryStorageCoordinator
@@ -113,7 +114,7 @@ class EatonBatteryNumberEntity(CoordinatorEntity, NumberEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_{description['key']}"
         )
-        self._attr_name = description["name"]
+        self._attr_translation_key = str(description["translation_key"])
         self._attr_native_min_value = float(description["min"])
         self._attr_native_max_value = float(description["max"])
         self._attr_native_step = float(description["step"])
@@ -232,7 +233,7 @@ class EatonXStorageHouseConsumptionThresholdNumber(CoordinatorEntity, NumberEnti
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_set_house_consumption_threshold"
         )
-        self._attr_name = "House consumption threshold"
+        self._attr_translation_key = "house_consumption_threshold"
         self._optimistic_value: int | None = None
 
     @property
@@ -284,37 +285,12 @@ class EatonXStorageHouseConsumptionThresholdNumber(CoordinatorEntity, NumberEnti
             self.async_write_ha_state()
 
             # First, get the current settings from the API (not cached data)
-            current_settings_response = await self.coordinator.api.get_settings()
-            if not current_settings_response or not current_settings_response.get(
-                "result"
-            ):
-                _LOGGER.error("Failed to get current settings from API")
+            current_settings = await async_get_and_transform_settings(
+                self.coordinator.api
+            )
+            if current_settings is None:
                 self._optimistic_value = None
                 return
-
-            # Get the current settings data
-            current_settings = current_settings_response.get("result", {})
-
-            # Transform the settings data to match PUT API expectations
-            # The GET API returns objects, but PUT API expects strings/primitives
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
 
             # Update only the energySavingMode.houseConsumptionThreshold field
             if "energySavingMode" not in current_settings:
@@ -381,7 +357,7 @@ class EatonXStorageBatteryBackupLevelNumber(CoordinatorEntity, NumberEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_set_battery_backup_level"
         )
-        self._attr_name = "Battery backup level"
+        self._attr_translation_key = "battery_backup_level"
         self._optimistic_value: int | None = None
 
     @property
@@ -429,32 +405,12 @@ class EatonXStorageBatteryBackupLevelNumber(CoordinatorEntity, NumberEntity):
             self._optimistic_value = int(value)
             self.async_write_ha_state()
 
-            current_settings_response = await self.coordinator.api.get_settings()
-            if not current_settings_response or not current_settings_response.get(
-                "result"
-            ):
-                _LOGGER.error("Failed to get current settings from API")
+            current_settings = await async_get_and_transform_settings(
+                self.coordinator.api
+            )
+            if current_settings is None:
                 self._optimistic_value = None
                 return
-            current_settings = current_settings_response.get("result", {})
-
-            # Transform composite objects
-            if "country" in current_settings and isinstance(
-                current_settings["country"], dict
-            ):
-                current_settings["country"] = current_settings["country"].get(
-                    "geonameId", ""
-                )
-            if "city" in current_settings and isinstance(
-                current_settings["city"], dict
-            ):
-                current_settings["city"] = current_settings["city"].get("geonameId", "")
-            if "timezone" in current_settings and isinstance(
-                current_settings["timezone"], dict
-            ):
-                current_settings["timezone"] = current_settings["timezone"].get(
-                    "id", ""
-                )
 
             current_settings["bmsBackupLevel"] = int(value)
 
