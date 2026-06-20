@@ -16,7 +16,10 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    TimestampDataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .api import EatonBatteryAPI
 from .const import DOMAIN
@@ -24,7 +27,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-class EatonXstorageHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching data from the Eaton xStorage Home API."""
 
     def __init__(self, hass: HomeAssistant, api: EatonBatteryAPI, config_entry) -> None:

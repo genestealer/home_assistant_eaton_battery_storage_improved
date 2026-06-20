@@ -1038,6 +1038,10 @@ class EatonXStorageSensor(
         if self._precision is not None:
             return self._precision
 
+        # Cell voltage sensors (mV): 0 decimal places (already in millivolts).
+        # Checked before the generic voltage rule so they are not given 1 decimal.
+        if "CellVoltage" in self._key or "VoltageDelta" in self._key:
+            return 0
         # Temperature sensors: 1 decimal place
         if (
             self._attr_device_class == "temperature"
@@ -1069,9 +1073,6 @@ class EatonXStorageSensor(
         # CPU usage: 1 decimal place
         if "cpuUsage" in self._key:
             return 1
-        # Cell voltage sensors (mV): 0 decimal places (already in millivolts)
-        if "CellVoltage" in self._key or "VoltageDelta" in self._key:
-            return 0
         # Default: no specific precision
         return None
 
