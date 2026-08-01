@@ -16,19 +16,30 @@ which defines the focus areas (security, runtime correctness, performance, code
 quality, maintainability), the required output structure, and the priority /
 type emoji conventions used throughout this document.
 
-Project coding standards were taken from
-[AGENTS.md](../AGENTS.md) and the Home Assistant core developer guidelines
-(async I/O rules, exception selection, entity naming, unique IDs, device
-registry rules, quality scale tiers).
+Project coding standards were taken from three sources:
+
+1. [AGENTS.md](../AGENTS.md) in this repository.
+2. The Home Assistant **integrations skill**
+   (`.claude/skills/integrations/SKILL.md` in `home-assistant/core`, mirrored
+   into `.github/copilot-instructions.md` and `AGENTS.md`) — async I/O rules,
+   exception-type selection, entity naming, unique-ID sourcing, device registry
+   rules, coordinator patterns.
+3. The Home Assistant **quality scale system**, verified directly against the
+   machine validators in `script/hassfest/quality_scale_validation/` and the
+   rule/tier table in `script/hassfest/quality_scale.py` of a checked-out
+   `home-assistant/core` at branch `dev`, following the
+   `ha-quality-scale-verify` skill.
 
 ### Scope
 
-Two passes were performed:
+Three passes were performed:
 
 1. **Delta review** of the changes on `main` since the merge of PR #28
    (`68986b0..HEAD`) — the work described by PR #32, "Fix system health crash,
    PV sensor migration, and cell-voltage precision".
 2. **Whole-project review** of the full integration source.
+3. **Quality scale verification** against Home Assistant core's own rule
+   definitions and validators (Part 3).
 
 Everything under `custom_components/eaton_battery_storage/` was read in full
 (≈4,400 lines across 16 modules), plus `hacs.json`,
@@ -45,11 +56,18 @@ Everything under `custom_components/eaton_battery_storage/` was read in full
 | Cross-module fact checks | workspace text search (exact + regex) for `unique_id`, `load_token`, `ConfigEntryAuthFailed`, `PARALLEL_UPDATES`, `last_update_success_time`, `CellVoltage` |
 | Source reading | full-file reads of every module in the component |
 | Test / CI discovery | `find . -name "test_*.py" -o -name "conftest.py"`, inspection of `.github/workflows/main.yml` |
+| Quality scale grounding | reads of `script/hassfest/quality_scale.py` (`ALL_RULES`, tier table, `validate_iqs_file`) and `script/hassfest/quality_scale_validation/*.py` in `home-assistant/core` |
 
 No code was executed, no linter or test suite was run (none exist in the
 repository — see finding 10), and no changes were made to the integration as
 part of this review. Every finding below was verified by reading the source; no
 finding is inferred from naming alone.
+
+**Methodology note**: Parts 1 and 2 were produced using the general Home
+Assistant integration guidelines only. Part 3 was added afterwards, when it
+became clear that the quality scale rules had not been checked against core's
+authoritative definitions. It is kept as a separate section rather than merged
+backwards, so the provenance of each finding stays clear.
 
 ---
 
@@ -487,6 +505,137 @@ absence of tests.
 
 ---
 
+# Part 3 — Quality scale verification
+
+This pass checks the integration against Home Assistant's Integration Quality
+Scale as core actually defines and enforces it, rather than against the general
+guidelines used in Parts 1 and 2. Every claim below is grounded in a specific
+file in `home-assistant/core` (branch `dev`), cited inline.
+
+`manifest.json` declares `"quality_scale": "bronze"` and the repository ships a
+`quality_scale.yaml`, so the Bronze tier is being publicly asserted.
+
+## 14. 🔧 Nothing validates the declared quality scale for a custom component
+
+* **Priority**: 🔥
+* **File**: `.github/workflows/main.yml`, `custom_components/eaton_battery_storage/quality_scale.yaml`
+* **Details**: The CI workflow runs `home-assistant/actions/hassfest`, which
+  looks like it validates the quality scale. It does not. `validate_iqs_file` in
+  `script/hassfest/quality_scale.py` opens with:
+
+  ```python
+  def validate_iqs_file(config: Config, integration: Integration) -> None:
+      """Validate quality scale file for integration."""
+      if not integration.core:
+          return
+  ```
+
+  Custom components return immediately. The declared Bronze tier is therefore
+  entirely self-asserted, and every rule status in `quality_scale.yaml` is
+  unverified by any automation. This is why findings 15–19 below have gone
+  unnoticed.
+* **Suggested change**: treat `quality_scale.yaml` as a manually maintained
+  document and audit it on each release, or add a CI step that runs the core
+  validators against the component path.
+
+## 15. 🔧 The integration does not meet the Bronze tier it declares
+
+* **Priority**: ⚠️
+* **File**: `custom_components/eaton_battery_storage/quality_scale.yaml`
+* **Details**: Five Bronze rules are marked `todo`: `brands`,
+  `config-flow-test-coverage`, `docs-high-level-description`,
+  `docs-installation-instructions`, `docs-removal-instructions`. Bronze requires
+  **all** of its rules to be `done` or validly `exempt` — core enforces this in
+  `quality_scale.py`:
+
+  ```python
+  required_rules = set(SCALE_RULES[scale])
+  if missing_rules := (required_rules - rules_met):
+      integration.add_error("quality_scale", f"...requires quality scale rules to be met:\n{...}")
+  ```
+
+  For a core integration this is a hard build failure.
+* **Suggested change**: either complete the five rules or drop
+  `"quality_scale": "bronze"` from `manifest.json` until they are done.
+  `config-flow-test-coverage` is the only expensive one, and it is the same work
+  as finding 10.
+
+## 16. 🔧 The `action-setup` exemption is provably incorrect
+
+* **Priority**: ⚠️
+* **File**: `custom_components/eaton_battery_storage/quality_scale.yaml`, `custom_components/eaton_battery_storage/__init__.py`
+* **Details**: The file states
+  `action-setup: exempt — Integration does not register custom service actions`,
+  but `__init__.py` calls `hass.services.async_register(DOMAIN, SERVICE_RELOAD, ...)`
+  inside `async_setup_entry`. Core's validator
+  (`script/hassfest/quality_scale_validation/action_setup.py`) detects exactly
+  this shape — it walks `async_setup_entry` for any
+  `hass.services.async_register` / `async_register_entity_service` call and
+  reports *"Integration registers services in ... (async_setup_entry)"*.
+  Registering per entry also means the service is re-registered for every
+  config entry and never removed on unload.
+* **Suggested change**: move the registration to `async_setup`, or drop it
+  entirely — Home Assistant already provides reload for config-entry
+  integrations. Then change the status from `exempt` to `done`.
+
+## 17. 🔧 `parallel-updates` is unlisted and unmet across five platforms
+
+* **Priority**: ⚠️
+* **File**: `custom_components/eaton_battery_storage/`
+* **Details**: `parallel-updates` is a Silver rule with its own validator
+  (`quality_scale_validation/parallel_updates.py`) and is absent from
+  `quality_scale.yaml`. Only `binary_sensor.py` and `number.py` declare
+  `PARALLEL_UPDATES = 0`; `sensor.py`, `switch.py`, `select.py`, `button.py` and
+  `event.py` declare nothing. This is not cosmetic — it is the missing guard
+  that allows the concurrent settings writes described in finding 5.
+* **Suggested change**: `PARALLEL_UPDATES = 0` on the read-only platforms
+  (`sensor`, `binary_sensor`, `event`) and `PARALLEL_UPDATES = 1` on the
+  command platforms (`switch`, `select`, `number`, `button`).
+
+## 18. 🔧 `runtime-data` is marked done but fails the typed-entry requirement
+
+* **Priority**: 🟡
+* **File**: `custom_components/eaton_battery_storage/__init__.py`, `custom_components/eaton_battery_storage/diagnostics.py`
+* **Details**: `quality_scale_validation/runtime_data.py` checks two things: that
+  `async_setup_entry` assigns `entry.runtime_data` (the integration passes), and
+  — once `strict-typing` is in play — that `async_setup_entry`,
+  `async_unload_entry`, `async_migrate_entry` and
+  `async_get_config_entry_diagnostics` are annotated with a custom
+  `*ConfigEntry` alias matching `^[A-Za-z][A-Za-z0-9]+ConfigEntry$`.
+  `__init__.py` and `diagnostics.py` both use a bare `ConfigEntry`; the alias
+  exists only under `if TYPE_CHECKING` inside individual platform modules, where
+  it is redefined five times.
+* **Suggested change**: define the alias once in `coordinator.py` and import it
+  everywhere:
+
+  ```python
+  type EatonConfigEntry = ConfigEntry[EatonXstorageHomeCoordinator]
+
+  async def async_setup_entry(hass: HomeAssistant, entry: EatonConfigEntry) -> bool:
+  ```
+
+## 19. ⛏ `quality_scale.yaml` misfiles `diagnostics` and omits the whole Silver tier
+
+* **Priority**: 🟢
+* **File**: `custom_components/eaton_battery_storage/quality_scale.yaml`
+* **Details**: `diagnostics` is listed under a `# Silver` comment, but it is a
+  **Gold** rule per `ALL_RULES` in `quality_scale.py`. More importantly the
+  Silver tier is almost entirely absent from the file: `action-exceptions`,
+  `config-entry-unloading`, `docs-configuration-parameters`,
+  `docs-installation-parameters`, `entity-unavailable`, `integration-owner`,
+  `log-when-unavailable`, `parallel-updates` and `test-coverage` are all
+  unlisted. Of these, `log-when-unavailable` has no implementation anywhere in
+  the codebase — the coordinator logs an error on *every* failed refresh rather
+  than once on loss and once on recovery.
+* **Suggested change**: regenerate the file with every rule through the target
+  tier listed explicitly as `done` / `todo` / `exempt`, and correct the tier
+  comments. This is also the natural place to record finding 3 —
+  `reauthentication-flow` is marked `done`, but the flow is unreachable because
+  nothing raises `ConfigEntryAuthFailed`, so the status is aspirational rather
+  than accurate.
+
+---
+
 # Summary
 
 The integration is well-organized and the entity layer is idiomatic Home
@@ -512,3 +661,10 @@ For PR #32 specifically, two items should be addressed before it is considered
 complete: `system_health.py` still dereferences `runtime_data` on a
 possibly-unloaded entry, so the advertised crash fix is incomplete; and the PV
 migration will stomp on user-disabled entities.
+
+**On the quality scale claim**: the Bronze badge in `manifest.json` is currently
+unearned (finding 15) and unverifiable by CI (finding 14), and two rules marked
+`done`/`exempt` are inaccurate (findings 16 and 3). Correcting
+`quality_scale.yaml` is cheap and makes the remaining gap honest; earning Bronze
+for real needs only the five `todo` rules, of which config flow test coverage is
+the only substantial one.
