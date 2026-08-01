@@ -432,23 +432,54 @@ absence of tests.
 
 * **Priority**: ⚠️
 * **File**: `.github/workflows/main.yml`
-* **Details**: There is not a single `test_*.py` or `conftest.py` in the
-  repository, and the workflow runs only HACS validation + hassfest — neither
-  executes a line of the integration's code. Ruff, Pylint and MyPy are all
-  absent despite being the standards this project's own `AGENTS.md` points at.
-  For a 4,400-line integration that writes to a battery inverter, a regression in
-  the settings PUT path reaches users unverified. `quality_scale.yaml` already
-  flags `config-flow-test-coverage: todo`.
-* **Suggested change**: add `pytest-homeassistant-custom-component` and a job
-  that actually runs code. Start with the highest-risk, lowest-effort surface —
-  the config flow (Bronze requires 100 % there) and
-  `settings_helpers.transform_settings_for_put`:
+* **Details**: The repository has no test or quality tooling of any kind. A
+  directory listing confirms all of the following are absent:
 
-  ```yaml
-  - run: pip install pytest-homeassistant-custom-component ruff mypy
-  - run: ruff check custom_components/
-  - run: pytest tests/ --cov=custom_components.eaton_battery_storage
-  ```
+  | Expected | Present? |
+  | --- | --- |
+  | `tests/` directory, any `test_*.py`, any `conftest.py` | ❌ none |
+  | `pyproject.toml` / `setup.cfg` | ❌ none |
+  | `requirements_test.txt` / any requirements file | ❌ none |
+  | `.ruff.toml` / ruff or pylint config | ❌ none |
+  | `.pre-commit-config.yaml` | ❌ none |
+  | CI job that executes integration code | ❌ none |
+
+  The single workflow runs HACS validation and hassfest. Neither imports or
+  executes a line of the integration — HACS validation checks repository
+  structure and `hacs.json`, and hassfest checks manifest/translation metadata
+  (and, per finding 14, skips quality scale validation entirely for custom
+  components). Ruff, Pylint and MyPy are all absent despite being the standards
+  this project's own `AGENTS.md` points at.
+
+  The practical consequence: for a 4,400-line integration that writes to a
+  battery inverter, **no automated check would catch a syntax error, an unused
+  import, a broken type contract, or a regression in the settings PUT path**
+  before it reaches users via HACS. Every finding in this review was found by
+  reading, because there was no other way to find it. `quality_scale.yaml`
+  already flags `config-flow-test-coverage: todo`, which is one of the five
+  rules blocking the declared Bronze tier (finding 15).
+* **Suggested change**: this is the highest-leverage item in the review, because
+  it is what makes every other item safe to act on. A minimal viable setup:
+
+  1. `requirements_test.txt` pinning `pytest-homeassistant-custom-component`,
+     `ruff` and `mypy`.
+  2. A `pyproject.toml` with ruff and mypy configuration.
+  3. A CI job that actually runs them:
+
+     ```yaml
+     - run: pip install -r requirements_test.txt
+     - run: ruff check custom_components/
+     - run: mypy custom_components/eaton_battery_storage
+     - run: pytest tests/ --cov=custom_components.eaton_battery_storage
+     ```
+
+  4. First tests targeting the highest-risk, lowest-effort surfaces: the config
+     flow (Bronze requires 100 % coverage there) and
+     `settings_helpers.transform_settings_for_put` (pure function, no mocking
+     required).
+
+  Adding step 3 alone — with zero tests written — already catches an entire
+  class of defect on every pull request.
 
 ## 11. ♻️ Options flow writes twice and triggers two reloads
 
