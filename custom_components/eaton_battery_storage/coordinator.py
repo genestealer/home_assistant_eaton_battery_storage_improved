@@ -122,8 +122,6 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
             for endpoint, method in [
                 ("config_state", self.api.get_config_state),
                 ("settings", self.api.get_settings),
-                ("metrics", self.api.get_metrics),
-                ("metrics_daily", self.api.get_metrics_daily),
                 ("schedule", self.api.get_schedule),
             ]:
                 try:

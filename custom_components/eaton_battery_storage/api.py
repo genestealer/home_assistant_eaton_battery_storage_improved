@@ -5,7 +5,6 @@ The xStorage Home inverter has poor energy monitoring accuracy. Power measuremen
 (consumption, production, grid values, load values) are typically 10%-30% higher than
 actual values. This affects all energy flow data returned by the API endpoints:
 - /api/device/status (energyFlow section)
-- /api/metrics and /api/metrics/daily
 - All power-related values in watts
 
 Use external energy monitoring for accurate power measurements.
@@ -97,7 +96,9 @@ class EatonBatteryAPI:
                     and "token" in result.get("result", {})
                 ):
                     self.access_token = result["result"]["token"]
-                    self.token_expiration = datetime.now(timezone.utc) + timedelta(minutes=55)
+                    self.token_expiration = datetime.now(timezone.utc) + timedelta(
+                        minutes=55
+                    )
                     await self.store_token()
                     _LOGGER.info("Connected successfully. Bearer token acquired.")
                 elif "error" in result:
@@ -250,14 +251,6 @@ class EatonBatteryAPI:
     async def get_settings(self) -> dict[str, Any]:
         """Get device settings."""
         return await self.make_request("GET", "/api/settings")
-
-    async def get_metrics(self) -> dict[str, Any]:
-        """Get device metrics."""
-        return await self.make_request("GET", "/api/metrics")
-
-    async def get_metrics_daily(self) -> dict[str, Any]:
-        """Get daily metrics."""
-        return await self.make_request("GET", "/api/metrics/daily")
 
     async def get_schedule(self) -> dict[str, Any]:
         """Get device schedule."""

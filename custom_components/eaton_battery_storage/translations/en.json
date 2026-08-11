@@ -89,6 +89,21 @@
       "notifications": {
         "name": "Notifications"
       },
+      "latest_notification": {
+        "name": "Latest Notification"
+      },
+      "inverter_info": {
+        "name": "Inverter Info"
+      },
+      "bms_info": {
+        "name": "BMS Info"
+      },
+      "device_info": {
+        "name": "Device Info"
+      },
+      "technical_info": {
+        "name": "Technical Info"
+      },
       "status_currentmode_command": {
         "name": "Current Mode Command"
       },
@@ -369,6 +384,12 @@
       },
       "inverter_power_state": {
         "name": "Inverter Power State"
+      },
+      "energy_saving_mode_activated": {
+        "name": "Energy Saving Mode Activated"
+      },
+      "bms_fault": {
+        "name": "BMS Fault"
       },
       "has_unread_notifications": {
         "name": "Has Unread Notifications"

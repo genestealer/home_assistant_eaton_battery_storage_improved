@@ -30,17 +30,20 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfPower
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    BMS_FAULT_CODE_MAP,
+    BMS_NO_FAULT,
     BMS_STATE_MAP,
     CURRENT_MODE_ACTION_MAP,
     CURRENT_MODE_COMMAND_MAP,
     CURRENT_MODE_RECURRENCE_MAP,
     CURRENT_MODE_TYPE_MAP,
+    NOTIFICATION_SUBTYPE_MAP,
     OPERATION_MODE_MAP,
     POWER_ACCURACY_WARNING,
 )
@@ -53,6 +56,7 @@ def _translation_key_from_key(key: str) -> str:
     """Build a stable translation key from a sensor data key."""
     return key.replace(".", "_").replace("-", "_").lower()
 
+
 SENSOR_TYPES = {
     # status endpoint
     "status.currentMode.command": {
@@ -64,8 +68,8 @@ SENSOR_TYPES = {
     },
     "status.currentMode.duration": {
         "name": "Current Mode Duration",
-        "unit": None,
-        "device_class": None,
+        "unit": "h",
+        "device_class": "duration",
         "entity_category": None,
         "icon": "mdi:timer-outline",
     },
@@ -221,7 +225,8 @@ SENSOR_TYPES = {
         "name": "Operation Mode",
         "unit": None,
         "device_class": None,
-        "entity_category": None,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:cog-outline",
     },
     # WARNING: Inverter power measurements are typically 10%-30% higher than actual values - accuracy is poor
@@ -249,14 +254,16 @@ SENSOR_TYPES = {
         "name": "Energy Saving Mode Enabled",
         "unit": None,
         "device_class": None,
-        "entity_category": None,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:leaf",
     },
     "status.energyFlow.energySavingModeActivated": {
         "name": "Energy Saving Mode Activated",
         "unit": None,
         "device_class": None,
-        "entity_category": None,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:leaf-circle",
     },
     # WARNING: 30-day metrics disabled by default - inverter measurements are typically 10%-30% higher than actual values
@@ -336,6 +343,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:chip",
     },
     "device.inverterFirmwareVersion": {
@@ -343,6 +351,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:chip",
     },
     "device.bmsFirmwareVersion": {
@@ -350,6 +359,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:chip",
     },
     "device.energySavingMode.houseConsumptionThreshold": {
@@ -357,12 +367,14 @@ SENSOR_TYPES = {
         "unit": UnitOfPower.WATT,
         "device_class": "power",
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
     },
     "device.inverterManufacturer": {
         "name": "Inverter Manufacturer",
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:factory",
     },
     "device.inverterModelName": {
@@ -370,6 +382,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:identifier",
     },
     "device.inverterVaRating": {
@@ -377,12 +390,14 @@ SENSOR_TYPES = {
         "unit": "VA",
         "device_class": "apparent_power",
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
     },
     "device.inverterSerialNumber": {
         "name": "Inverter Serial Number",
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:barcode",
     },
     "device.inverterNominalVpv": {
@@ -391,18 +406,21 @@ SENSOR_TYPES = {
         "device_class": "voltage",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "pv_related": True,
+        "disabled_by_default": True,
     },
     "device.bmsCapacity": {
         "name": "BMS Capacity",
         "unit": "kWh",
         "device_class": "energy_storage",
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
     },
     "device.bmsSerialNumber": {
         "name": "BMS Serial Number",
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:barcode",
     },
     "device.bmsModel": {
@@ -410,6 +428,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:identifier",
     },
     "device.bundleVersion": {
@@ -417,6 +436,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:package-variant",
     },
     "device.localPortalRemoteId": {
@@ -424,6 +444,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:remote-desktop",
     },
     "device.dns": {
@@ -439,6 +460,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:earth",
     },
     # technical status endpoint - requires technician account
@@ -447,6 +469,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:cog-outline",
     },
     "technical_status.gridVoltage": {
@@ -490,6 +513,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:code-tags",
     },
     "technical_status.dcCurrentInjectionR": {
@@ -518,6 +542,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:identifier",
     },
     "technical_status.inverterPowerRating": {
@@ -525,6 +550,7 @@ SENSOR_TYPES = {
         "unit": UnitOfPower.WATT,
         "device_class": "power",
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
     },
     "technical_status.pv1Voltage": {
         "name": "PV1 Voltage",
@@ -607,6 +633,7 @@ SENSOR_TYPES = {
         "unit": PERCENTAGE,
         "device_class": "battery",
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
     },
     "technical_status.bmsState": {
         "name": "BMS State",
@@ -645,6 +672,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:protocol",
     },
     "technical_status.invBootloaderVersion": {
@@ -652,6 +680,7 @@ SENSOR_TYPES = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "disabled_by_default": True,
         "icon": "mdi:chip",
     },
     # maintenance diagnostics endpoint - requires technician account
@@ -710,7 +739,15 @@ async def async_setup_entry(
     is_technician = user_type == "tech"
 
     # Create sensors based on account type and PV configuration
-    entities: list[EatonXStorageSensor | EatonXStorageNotificationsSensor] = []
+    entities: list[
+        EatonXStorageSensor
+        | EatonXStorageNotificationsSensor
+        | EatonXStorageLatestNotificationSensor
+        | EatonXStorageInverterInfoSensor
+        | EatonXStorageBmsInfoSensor
+        | EatonXStorageDeviceInfoSensor
+        | EatonXStorageTechnicalInfoSensor
+    ] = []
     for key, description in SENSOR_TYPES.items():
         # Skip PV-related sensors if has_pv is False
         if description.get("pv_related", False) and not has_pv:
@@ -724,6 +761,14 @@ async def async_setup_entry(
 
     # Add the notifications array sensor
     entities.append(EatonXStorageNotificationsSensor(coordinator))
+    entities.append(EatonXStorageLatestNotificationSensor(coordinator))
+
+    # Static identity fields grouped into a few sensors instead of one each
+    entities.append(EatonXStorageInverterInfoSensor(coordinator, has_pv))
+    entities.append(EatonXStorageBmsInfoSensor(coordinator))
+    entities.append(EatonXStorageDeviceInfoSensor(coordinator))
+    if is_technician:
+        entities.append(EatonXStorageTechnicalInfoSensor(coordinator))
 
     async_add_entities(entities)
 
@@ -746,11 +791,10 @@ class EatonXStorageNotificationsSensor(
 
     @property
     def native_value(self) -> int:
-        """Return the number of notifications as the state."""
+        """Return the total number of notifications as the state."""
         try:
             notifications_data = self.coordinator.data.get("notifications", {})
-            results = notifications_data.get("results", [])
-            return len(results)
+            return notifications_data.get("total", 0)
         except (KeyError, TypeError, AttributeError) as err:
             _LOGGER.error("Error retrieving notifications state: %s", err)
             return 0
@@ -786,6 +830,216 @@ class EatonXStorageNotificationsSensor(
         except (KeyError, TypeError, AttributeError) as e:
             _LOGGER.error("Error retrieving notifications attributes: %s", e)
             return {}
+
+
+class EatonXStorageLatestNotificationSensor(
+    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
+):
+    """Sensor exposing the most recent notification's type as its state."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "latest_notification"
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+        """Initialize the latest notification sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_latest_notification"
+        )
+
+    def _latest_notification(self) -> dict[str, Any] | None:
+        """Return the most recent notification, if any."""
+        notifications_data = self.coordinator.data.get("notifications", {})
+        results = notifications_data.get("results", [])
+        return results[0] if results else None
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the most recent notification's description as the state."""
+        try:
+            notification = self._latest_notification()
+            if not notification:
+                return None
+            sub_type = notification.get("subType") or notification.get("type")
+            if not sub_type:
+                return None
+            mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type)
+            return mapped["description"] if mapped else sub_type
+        except (KeyError, TypeError, AttributeError) as err:
+            _LOGGER.error("Error retrieving latest notification state: %s", err)
+            return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the remaining notification details as attributes."""
+        try:
+            notification = self._latest_notification()
+            if not notification:
+                return None
+            sub_type = notification.get("subType")
+            mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type or "", {})
+            return {
+                "raw_sub_type": sub_type,
+                "remedy": mapped.get("remedy"),
+                "alert_id": notification.get("alertId"),
+                "level": notification.get("level"),
+                "type": notification.get("type"),
+                "status": notification.get("status"),
+                "created_at": notification.get("createdAt"),
+                "updated_at": notification.get("updatedAt"),
+            }
+        except (KeyError, TypeError, AttributeError) as err:
+            _LOGGER.error("Error retrieving latest notification attributes: %s", err)
+            return None
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.device_info
+
+
+class EatonXStorageInverterInfoSensor(
+    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
+):
+    """Sensor grouping static inverter identity fields as attributes."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "inverter_info"
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator, has_pv: bool) -> None:
+        """Initialize the inverter info sensor."""
+        super().__init__(coordinator)
+        self._has_pv = has_pv
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_inverter_info"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the inverter firmware version as the state."""
+        device = (self.coordinator.data or {}).get("device", {})
+        return device.get("inverterFirmwareVersion")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the remaining static inverter fields as attributes."""
+        device = (self.coordinator.data or {}).get("device", {})
+        attributes = {"va_rating": device.get("inverterVaRating")}
+        if self._has_pv:
+            attributes["nominal_vpv"] = device.get("inverterNominalVpv")
+        return attributes
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.device_info
+
+
+class EatonXStorageBmsInfoSensor(
+    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
+):
+    """Sensor grouping static BMS identity fields as attributes."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "bms_info"
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+        """Initialize the BMS info sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_bms_info"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the BMS model as the state."""
+        device = (self.coordinator.data or {}).get("device", {})
+        return device.get("bmsModel")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the remaining static BMS fields as attributes."""
+        device = (self.coordinator.data or {}).get("device", {})
+        return {
+            "serial_number": device.get("bmsSerialNumber"),
+            "capacity_kwh": device.get("bmsCapacity"),
+        }
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.device_info
+
+
+class EatonXStorageDeviceInfoSensor(
+    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
+):
+    """Sensor grouping static device/network identity fields as attributes."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "device_info"
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+        """Initialize the device info sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_device_info"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the bundle version as the state."""
+        device = (self.coordinator.data or {}).get("device", {})
+        return device.get("bundleVersion")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the remaining static device fields as attributes."""
+        device = (self.coordinator.data or {}).get("device", {})
+        return {
+            "local_portal_remote_id": device.get("localPortalRemoteId"),
+            "timezone": (device.get("timezone") or {}).get("name"),
+        }
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.device_info
+
+
+class EatonXStorageTechnicalInfoSensor(
+    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
+):
+    """Sensor grouping static technician-only identity fields as attributes."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "technical_info"
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+        """Initialize the technical info sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_technical_info"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the grid code as the state."""
+        technical_status = (self.coordinator.data or {}).get("technical_status", {})
+        return technical_status.get("gridCode")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the remaining static technical fields as attributes."""
+        technical_status = (self.coordinator.data or {}).get("technical_status", {})
+        maintenance_diagnostics = (self.coordinator.data or {}).get(
+            "maintenance_diagnostics", {}
+        )
+        ram_total = maintenance_diagnostics.get("ramUsage", {}).get("total")
+        return {
+            "inverter_power_rating": technical_status.get("inverterPowerRating"),
+            "bootloader_version": technical_status.get("invBootloaderVersion"),
+            "system_ram_total_mb": (
+                round(ram_total / 1024 / 1024, 2) if ram_total is not None else None
+            ),
+        }
 
     @property
     def device_info(self):
@@ -841,11 +1095,6 @@ class EatonXStorageSensor(
     @property
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added."""
-        # Disable TIDA Protocol Version by default as it's rarely useful
-        if self._key == "technical_status.tidaProtocolVersion":
-            return False
-
-        # Disable entities marked with disabled_by_default flag (e.g., 30-day metrics)
         return self._attr_entity_registry_enabled_default
 
     @property
@@ -903,6 +1152,17 @@ class EatonXStorageSensor(
             # If value is still a dict, return None
             if isinstance(value, dict):
                 return None
+
+            # Fault codes arrive as a list, or null when the BMS reports no fault
+            if self._key == "technical_status.bmsFaultCode":
+                if isinstance(value, list):
+                    return (
+                        ", ".join(
+                            BMS_FAULT_CODE_MAP.get(code, str(code)) for code in value
+                        )[:255]
+                        or BMS_NO_FAULT
+                    )
+                return BMS_NO_FAULT if value is None else value
 
             # Handle null/None values that should display as "None" instead of "Unknown"
             if value is None:
@@ -1006,20 +1266,15 @@ class EatonXStorageSensor(
             ):
                 return round(value, 1)
 
-            # Format startTime and endTime to 12-hour format
+            # The API reports times as HHMM, e.g. 1154 for 11:54
             if (self._key.endswith("startTime") or self._key.endswith("endTime")) and (
                 isinstance(value, int) or (isinstance(value, str) and value.isdigit())
             ):
-                # Accept both int and string representations
                 time_val = int(value)
                 hour = time_val // 100
                 minute = time_val % 100
                 if 0 <= hour < 24 and 0 <= minute < 60:
-                    suffix = " am" if hour < 12 or hour == 24 else " pm"
-                    hour12 = hour % 12
-                    if hour12 == 0:
-                        hour12 = 12
-                    return f"{hour12}:{minute:02d}{suffix}"
+                    return f"{hour:02d}:{minute:02d}"
             # Convert RAM usage from bytes to megabytes
             if "ramUsage" in self._key and isinstance(value, (int, float)):
                 return round(value / 1024 / 1024, 2)
@@ -1079,6 +1334,10 @@ class EatonXStorageSensor(
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return extra state attributes for entities with accuracy warnings."""
+        if self._key == "technical_status.bmsFaultCode":
+            technical_status = (self.coordinator.data or {}).get("technical_status", {})
+            codes = technical_status.get("bmsFaultCode")
+            return {"fault_codes": codes if isinstance(codes, list) else []}
         if self._accuracy_warning:
             return {
                 "accuracy_warning": POWER_ACCURACY_WARNING,
