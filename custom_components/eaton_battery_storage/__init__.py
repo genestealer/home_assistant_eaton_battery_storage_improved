@@ -141,11 +141,12 @@ async def async_migrate_pv_sensors(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("Migrating PV sensors: has_pv=%s", has_pv)
 
     for sensor_key in PV_SENSOR_KEYS:
-        entity_id = f"sensor.eaton_xstorage_{sensor_key.replace('.', '_')}"
-
-        # Try to find the entity in the registry
-        registry_entry = entity_registry.async_get(entity_id)
-        if registry_entry:
+        # Entity unique IDs are scoped to the config entry, so resolve the
+        # actual entity_id from the registry by unique_id rather than guessing
+        # the slug (which does not match the auto-generated entity_id).
+        unique_id = f"{entry.entry_id}_{sensor_key.replace('.', '_')}"
+        entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+        if entity_id:
             # Update the entity's enabled state based on PV configuration
             entity_registry.async_update_entity(
                 entity_id,

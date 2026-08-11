@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 # Number entity keys
 CHARGE_DURATION = "charge_duration"
@@ -27,6 +27,7 @@ class NumberEntityDefinition(TypedDict):
     step: int
     unit: str
     device_class: str
+    default: NotRequired[int]
 
 
 NUMBER_ENTITIES: list[NumberEntityDefinition] = [
