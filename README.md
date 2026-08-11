@@ -81,15 +81,15 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | sensor        | Battery Backup Level            | %    | Disabled | Minimum SOC reserved for backup power                    |
 | sensor        | Grid Power                      | W    | Enabled  | Grid consumption/injection (⚠️ accuracy warning applies) |
 | sensor        | Grid Role                       | -    | Enabled  | Supplying/Consuming/None                                 |
-| sensor        | Operation Mode                  | -    | Enabled  | Current operation mode                                   |
+| sensor        | Operation Mode                  | -    | Disabled | Current operation mode (duplicates the Current Operation Mode select) |
 | sensor        | Self Consumption                | %    | Enabled  | Percentage of PV energy used directly                    |
 | sensor        | Self Sufficiency                | %    | Enabled  | Percentage of energy needs met by PV                     |
 | sensor        | Critical Load Role              | -    | Enabled  | Critical loads status                                    |
 | sensor        | Critical Load Value             | W    | Enabled  | Power to critical loads                                  |
 | sensor        | Non-Critical Load Role          | -    | Enabled  | Non-critical loads status                                |
 | sensor        | Non-Critical Load Value         | W    | Enabled  | Power to non-critical loads                              |
-| sensor        | Energy Saving Mode Enabled      | -    | Enabled  | Energy saving mode configuration                         |
-| sensor        | Energy Saving Mode Activated    | -    | Enabled  | Energy saving mode active status                         |
+| sensor        | Energy Saving Mode Enabled      | -    | Disabled | Duplicates the Energy Saving Mode switch                 |
+| sensor        | Energy Saving Mode Activated    | -    | Disabled | Duplicates the Energy Saving Mode Activated binary sensor |
 | sensor        | Current Mode Command            | -    | Enabled  | Active operation mode command                            |
 | sensor        | Current Mode Duration           | h    | Enabled  | Duration of current mode                                 |
 | sensor        | Current Mode Type               | -    | Enabled  | Manual or Scheduled                                      |
@@ -97,8 +97,8 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | sensor        | Current Mode Power              | %    | Enabled  | Power setting for current mode                           |
 | sensor        | Current Mode SOC                | %    | Enabled  | Target SOC for current mode                              |
 | sensor        | Current Mode Action             | -    | Enabled  | Charge/Discharge action                                  |
-| sensor        | Current Mode Start Time         | -    | Enabled  | Start time of current mode                               |
-| sensor        | Current Mode End Time           | -    | Enabled  | End time of current mode                                 |
+| sensor        | Current Mode Start Time         | -    | Enabled  | Start time of current mode (24-hour `HH:MM`)             |
+| sensor        | Current Mode End Time           | -    | Enabled  | End time of current mode (24-hour `HH:MM`)               |
 | sensor        | Today's Grid Consumption        | kWh  | Disabled | Grid energy consumed today                               |
 | sensor        | Today's Self Consumption        | %    | Disabled | Self-consumption percentage today                        |
 | sensor        | Today's Self Sufficiency        | %    | Disabled | Self-sufficiency percentage today                        |
@@ -107,24 +107,29 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | sensor        | 30 Days Self Sufficiency        | %    | Disabled | Self-sufficiency last 30 days                            |
 | sensor        | Total Notifications Count       | -    | Enabled  | Number of system notifications                           |
 | sensor        | Unread Notifications Count      | -    | Enabled  | Number of unread notifications                           |
-| sensor        | BMS Capacity                    | kWh  | Enabled  | Total battery capacity                                   |
-| sensor        | BMS Firmware Version            | -    | Enabled  | Battery management system version                        |
-| sensor        | BMS Model                       | -    | Enabled  | Battery model designation                                |
-| sensor        | BMS Serial Number               | -    | Enabled  | Battery serial number                                    |
-| sensor        | Firmware Version                | -    | Enabled  | System firmware version                                  |
-| sensor        | Inverter Firmware Version       | -    | Enabled  | Inverter firmware version                                |
-| sensor        | Inverter Manufacturer           | -    | Enabled  | Inverter manufacturer                                    |
-| sensor        | Inverter Model Name             | -    | Enabled  | Inverter model                                           |
-| sensor        | Inverter Serial Number          | -    | Enabled  | Inverter serial number                                   |
-| sensor        | Inverter VA Rating              | VA   | Enabled  | Inverter power rating                                    |
-| sensor        | Bundle Version                  | -    | Enabled  | Software bundle version                                  |
-| sensor        | Device Timezone                 | -    | Enabled  | System timezone setting                                  |
+| sensor        | Latest Notification             | -    | Enabled  | Readable description of the most recent notification (see [Notifications sensor](#notifications-sensor)) |
+| sensor        | BMS Capacity                    | kWh  | Disabled | Folded into the BMS Info sensor's attributes              |
+| sensor        | BMS Firmware Version            | -    | Disabled | Battery management system version (duplicates device `hw_version`) |
+| sensor        | BMS Model                       | -    | Disabled | Folded into the BMS Info sensor's attributes              |
+| sensor        | BMS Serial Number               | -    | Disabled | Folded into the BMS Info sensor's attributes              |
+| sensor        | Firmware Version                | -    | Disabled | Duplicates device `sw_version`                            |
+| sensor        | Inverter Firmware Version       | -    | Disabled | Folded into the Inverter Info sensor's state               |
+| sensor        | Inverter Manufacturer           | -    | Disabled | Duplicates device manufacturer                             |
+| sensor        | Inverter Model Name             | -    | Disabled | Duplicates device `model`                                  |
+| sensor        | Inverter Serial Number          | -    | Disabled | Duplicates device `serial_number`                          |
+| sensor        | Inverter VA Rating              | VA   | Disabled | Folded into the Inverter Info sensor's attributes           |
+| sensor        | Bundle Version                  | -    | Disabled | Folded into the Device Info sensor's state                 |
+| sensor        | Device Timezone                 | -    | Disabled | Folded into the Device Info sensor's attributes             |
 | sensor        | DNS Server                      | -    | Disabled | DNS server address                                       |
-| sensor        | House Consumption Threshold     | W    | Enabled  | Energy saving mode threshold                             |
-| sensor        | Local Portal Remote ID          | -    | Enabled  | Remote portal identifier                                 |
+| sensor        | House Consumption Threshold     | W    | Disabled | Duplicates the Set House Consumption Threshold number      |
+| sensor        | Local Portal Remote ID          | -    | Disabled | Folded into the Device Info sensor's attributes             |
+| sensor        | Inverter Info                   | -    | Enabled  | State = inverter firmware version; attributes: `va_rating`, `nominal_vpv` (PV installs) |
+| sensor        | BMS Info                        | -    | Enabled  | State = BMS model; attributes: `serial_number`, `capacity_kwh` |
+| sensor        | Device Info                     | -    | Enabled  | State = bundle version; attributes: `local_portal_remote_id`, `timezone` |
 | binary_sensor | Battery Charging                | -    | Enabled  | True when battery is charging                            |
 | binary_sensor | Battery Discharging             | -    | Enabled  | True when battery is discharging                         |
-| binary_sensor | Inverter Power State            | -    | Enabled  | Inverter on/off state                                    |
+| binary_sensor | Inverter Power State            | -    | Disabled | Duplicates the Inverter Power switch                       |
+| binary_sensor | Energy Saving Mode Activated    | -    | Enabled  | True while energy saving mode is actively reducing consumption |
 | binary_sensor | Has Unread Notifications        | -    | Enabled  | True if unread notifications exist                       |
 | switch        | Inverter Power                  | -    | Enabled  | Control inverter power on/off                            |
 | switch        | Energy Saving Mode              | -    | Enabled  | Enable/disable energy saving mode                        |
@@ -153,7 +158,7 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | sensor | AC PV Value            | W    | Enabled | AC-coupled PV power (⚠️ accuracy warning applies)  |
 | sensor | DC PV Role             | -    | Enabled | DC-coupled PV status                               |
 | sensor | DC PV Value            | W    | Enabled | DC-coupled PV power (⚠️ accuracy warning applies)  |
-| sensor | Inverter Nominal VPV   | V    | Enabled | Nominal PV voltage                                 |
+| sensor | Inverter Nominal VPV   | V    | Disabled | Folded into the Inverter Info sensor's attributes (PV installs) |
 | sensor | Today's PV Production  | kWh  | Enabled | PV energy generated today                          |
 | sensor | 30 Days PV Production  | kWh  | Enabled | PV energy generated last 30 days                   |
 | sensor | PV1 Voltage            | V    | Enabled | PV string 1 voltage (technician account required)  |
@@ -170,16 +175,16 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | ------ | ------------------------------- | ---- | ------- | ------------------------------------------- |
 | sensor | Grid Voltage                    | V    | Enabled | AC grid voltage                             |
 | sensor | Grid Frequency                  | Hz   | Enabled | AC grid frequency                           |
-| sensor | Grid Code                       | -    | Enabled | Grid connection standard                    |
+| sensor | Grid Code                       | -    | Disabled | Folded into the Technical Info sensor's state       |
 | sensor | Current To Grid                 | A    | Enabled | Current flow to/from grid                   |
 | sensor | Inverter Power                  | W    | Enabled | Inverter power output                       |
 | sensor | Inverter Temperature            | °C   | Enabled | Inverter operating temperature              |
 | sensor | Bus Voltage                     | V    | Enabled | DC bus voltage                              |
-| sensor | Technical Inverter Model        | -    | Enabled | Detailed inverter model                     |
-| sensor | Technical Inverter Power Rating | W    | Enabled | Inverter power rating                       |
-| sensor | Inverter Bootloader Version     | -    | Enabled | Inverter bootloader version                 |
-| sensor | TIDA Protocol Version           | -    | Enabled | TIDA protocol version                       |
-| sensor | Technical Operation Mode        | -    | Enabled | Detailed operation mode                     |
+| sensor | Technical Inverter Model        | -    | Disabled | Duplicates the Inverter Model Name sensor   |
+| sensor | Technical Inverter Power Rating | W    | Disabled | Folded into the Technical Info sensor's attributes |
+| sensor | Inverter Bootloader Version     | -    | Disabled | Folded into the Technical Info sensor's attributes |
+| sensor | TIDA Protocol Version           | -    | Disabled | Rarely useful                               |
+| sensor | Technical Operation Mode        | -    | Disabled | Duplicates the Current Operation Mode select |
 | sensor | BMS Voltage                     | V    | Enabled | Battery pack voltage                        |
 | sensor | BMS Current                     | A    | Enabled | Battery pack current                        |
 | sensor | BMS Temperature                 | °C   | Enabled | Battery temperature                         |
@@ -187,23 +192,33 @@ The available documentation provides 4 steps to setup an Eaton xStorage Hybrid u
 | sensor | BMS Max Temperature             | °C   | Enabled | Maximum battery cell temperature            |
 | sensor | BMS Min Temperature             | °C   | Enabled | Minimum battery cell temperature            |
 | sensor | BMS State                       | -    | Enabled | Battery state (charging/discharging/idle)   |
-| sensor | Technical BMS State of Charge   | %    | Enabled | Technical SOC reading                       |
+| sensor | Technical BMS State of Charge   | %    | Disabled | Duplicates the Battery State of Charge sensor |
 | sensor | BMS Total Charge                | kWh  | Enabled | Lifetime energy charged                     |
 | sensor | BMS Total Discharge             | kWh  | Enabled | Lifetime energy discharged                  |
 | sensor | BMS Highest Cell Voltage        | mV   | Enabled | Highest individual cell voltage             |
 | sensor | BMS Lowest Cell Voltage         | mV   | Enabled | Lowest individual cell voltage              |
 | sensor | BMS Cell Voltage Delta          | mV   | Enabled | Difference between highest and lowest cells |
-| sensor | BMS Fault Code                  | -    | Enabled | Battery fault code (if any)                 |
+| sensor | BMS Fault Code                  | -    | Enabled | Readable fault text (`No fault` when healthy); raw codes in the `fault_codes` attribute |
 | sensor | System CPU Usage                | %    | Enabled | Controller CPU utilization                  |
-| sensor | System RAM Total                | MB   | Enabled | Total system memory                         |
+| sensor | System RAM Total                | MB   | Enabled | Total system memory (also available as `system_ram_total_mb` on the Technical Info sensor) |
 | sensor | System RAM Used                 | MB   | Enabled | Used system memory                          |
+| sensor | Technical Info                  | -    | Enabled | State = grid code; attributes: `inverter_power_rating`, `bootloader_version`, `system_ram_total_mb` |
+| binary_sensor | BMS Fault                | -    | Enabled | Problem sensor, on when `BMS Fault Code` reports a fault |
 
-### Notifications sensor
+### Notifications sensors
 
-The integration exposes a sensor named "Notifications" (entity_id typically `sensor.notifications`).
+The integration exposes two sensors backed by the same notifications feed:
 
-- State: the number of notifications currently returned by the inverter
-- Attributes: a notifications array with entries containing `alert_id`, `level`, `type`, `sub_type`, `status`, `created_at`, and `updated_at` (plus `total`, `start`, and `size` for pagination)
+**`sensor.eaton_xstorage_home_notifications`**
+
+- State: the total number of notifications reported by the inverter (not just the current page)
+- Attributes: a `notifications` array (most recent page) with entries containing `alert_id`, `level`, `type`, `sub_type`, `status`, `created_at`, and `updated_at` (plus `total`, `start`, and `size` for pagination)
+
+**`sensor.eaton_xstorage_home_latest_notification`**
+
+- State: a human-readable description of the most recent notification (e.g. `The battery voltage is too high.`), derived from `sub_type`
+- Attributes: `raw_sub_type` (the original API value, e.g. `BATTERY_VOLTAGE_HIGH`), `remedy` (suggested action), plus `alert_id`, `level`, `type`, `status`, `created_at`, `updated_at`
+- Note: 5 of the 51 documented `sub_type` descriptions are reworded from the [xStorage Home API documentation](https://github.com/genestealer/eaton-xstorage-home-api-doc) (`BATTERY_VOLTAGE_HIGH`/`LOW` and `BUS_FAIL`/`BUS_HIGH_FAIL`/`BUS_LOW_FAIL`), because Eaton's own translation bundle reuses one string per opposing pair, which would make the sensor state unable to distinguish e.g. over-voltage from under-voltage
 
 Example (attributes in Home Assistant):
 
@@ -248,8 +263,8 @@ This integration supports two account types:
   - Basic monitoring and control
   - All core entities available
   - PV sensors (if enabled)
-  
-- **Technician Account** (Default: admin/jlwgK41G) 
+
+- **Technician Account** (Default: admin/jlwgK41G)
   - All Customer features plus:
   - Advanced technical diagnostics
   - BMS voltage/current/temperature sensors
