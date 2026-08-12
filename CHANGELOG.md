@@ -79,6 +79,30 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
   now declare `state_class: measurement`, so they are recorded in long-term statistics.
   Sensor descriptions can now set `state_class` explicitly instead of only deriving it from
   the device class. ([#34](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/34))
+- Every numeric sensor now declares a state class, so it reaches long-term statistics.
+  Previously only the `power`, `energy` and `energy_storage` device classes derived one,
+  which left the voltage, current, temperature, frequency and battery sensors, and the
+  percentage and diagnostic counters, out of statistics entirely. String and enum sensors
+  still declare none, as do the setpoints (**Current Mode SOC** and **Current Mode Power**)
+  and the static ratings (**Inverter VA Rating** and **Technical Inverter Power Rating**,
+  the latter reading a constant 0 on at least the 3.6 kW model).
+- **Self Consumption** was reported in watts with the `power` device class, but the device
+  reports it as a percentage of generated energy used directly. It is now a percentage,
+  matching the 30-day and today's self-consumption sensors, which were already correct.
+- **Current Mode Power** now declares its unit as a percentage. The device reports this
+  parameter as 5–100 % of the inverter rating, which is what `number.py` already assumed
+  when converting it to watts.
+- **Today's Grid Consumption**, **Today's PV Production** and their 30-day counterparts
+  were reported in watts with the `power` device class, but they are cumulative energy
+  totals. Probing a live inverter gave `today.gridConsumption` 13748.699 against an
+  instantaneous `gridValue` of 1337 W, and a 30-day figure almost exactly thirty times the
+  daily one, so they are watt hours. The two today's sensors are now `total_increasing`
+  energy and can be used in the Energy dashboard; the 30-day pair is a rolling window whose
+  absolute value is what matters, so it carries no state class.
+- **BMS Total Charge** and **BMS Total Discharge** were reported as energy in kWh. The
+  device returns coulomb counts: 17005 on a 4.2 kWh battery would be 4048 full cycles in
+  the ~13 months of records, whereas 17005 Ah over the pack's ~42.6 Ah works out at almost
+  exactly one cycle a day. They are now reported in Ah with state class `total`.
 - System health no longer crashes when the first config entry is disabled or retrying setup.
 - The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
 - Cell voltage sensors declare their display precision explicitly instead of relying on

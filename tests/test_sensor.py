@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor.const import (
+    DEVICE_CLASS_STATE_CLASSES as HA_DEVICE_CLASS_STATE_CLASSES,
+)
+from homeassistant.components.sensor.const import DEVICE_CLASS_UNITS
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -12,6 +16,10 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.eaton_battery_storage.const import DOMAIN, sensor_unique_id
+from custom_components.eaton_battery_storage.sensor import (
+    DEVICE_CLASS_STATE_CLASSES,
+    SENSOR_TYPES,
+)
 
 from .conftest import SERIAL, STATUS_RESULT, TECH_INPUT, mock_device
 
@@ -54,6 +62,98 @@ async def test_state_of_charge_is_recorded_as_a_measurement(
 
     assert state.state == "62"
     assert state.attributes["state_class"] is SensorStateClass.MEASUREMENT
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        pytest.param(
+            "technical_status.gridVoltage",
+            SensorStateClass.MEASUREMENT,
+            id="voltage",
+        ),
+        pytest.param(
+            "technical_status.bmsCurrent",
+            SensorStateClass.MEASUREMENT,
+            id="current",
+        ),
+        pytest.param(
+            "technical_status.bmsTemperature",
+            SensorStateClass.MEASUREMENT,
+            id="temperature",
+        ),
+        pytest.param(
+            "maintenance_diagnostics.cpuUsage.used",
+            SensorStateClass.MEASUREMENT,
+            id="no-device-class",
+        ),
+        pytest.param(
+            "technical_status.bmsTotalCharge",
+            SensorStateClass.TOTAL,
+            id="lifetime-coulomb-counter",
+        ),
+        pytest.param(
+            "status.today.gridConsumption",
+            SensorStateClass.TOTAL_INCREASING,
+            id="daily-energy",
+        ),
+        pytest.param(
+            "status.last30daysEnergyFlow.gridConsumption",
+            None,
+            id="rolling-window-energy",
+        ),
+        pytest.param("technical_status.bmsState", None, id="enum"),
+        pytest.param("device.firmwareVersion", None, id="version-string"),
+        pytest.param("status.energyFlow.gridRole", None, id="role-string"),
+        pytest.param("technical_status.inverterPowerRating", None, id="static-rating"),
+        pytest.param("status.currentMode.parameters.soc", None, id="setpoint"),
+    ],
+)
+async def test_state_class_matches_the_kind_of_value(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    key: str,
+    expected: SensorStateClass | None,
+) -> None:
+    """Only numeric readings get a state class, and it matches how they change."""
+    mock_device(aioclient_mock)
+    entry = await setup_entry(hass)
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, sensor_unique_id(entry.entry_id, key)
+    )
+    # Read the registry rather than the state, so disabled entities are covered.
+    capabilities = registry.async_get(entity_id).capabilities or {}
+
+    assert capabilities.get("state_class") is expected
+
+
+def test_declared_state_classes_are_possible_for_their_device_class() -> None:
+    """Home Assistant rejects state classes a device class cannot have."""
+    for key, description in SENSOR_TYPES.items():
+        device_class = description["device_class"]
+        state_class = description.get("state_class") or DEVICE_CLASS_STATE_CLASSES.get(
+            device_class
+        )
+        if device_class is None or state_class is None:
+            continue
+        allowed = HA_DEVICE_CLASS_STATE_CLASSES[SensorDeviceClass(device_class)]
+        assert state_class in allowed, (
+            f"{key} declares {state_class} but {device_class} allows {allowed}"
+        )
+
+
+def test_declared_units_are_valid_for_their_device_class() -> None:
+    """A device class only accepts the units Home Assistant knows how to convert."""
+    for key, description in SENSOR_TYPES.items():
+        device_class = description["device_class"]
+        if device_class is None:
+            continue
+        allowed = DEVICE_CLASS_UNITS[SensorDeviceClass(device_class)]
+        assert description["unit"] in allowed, (
+            f"{key} declares unit {description['unit']!r}, expected one of {allowed}"
+        )
 
 
 @pytest.mark.parametrize(

@@ -29,7 +29,12 @@ import logging
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfEnergy,
+    UnitOfPower,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -165,6 +170,26 @@ def _translation_key_from_key(key: str) -> str:
     return key.replace(".", "_").replace("-", "_").lower()
 
 
+# Every device class Home Assistant accepts a state class for, per its own
+# DEVICE_CLASS_STATE_CLASSES. Sensors carrying a device class not listed here,
+# and sensors with none at all, need an explicit "state_class" in SENSOR_TYPES.
+DEVICE_CLASS_STATE_CLASSES: dict[str, SensorStateClass] = {
+    "apparent_power": SensorStateClass.MEASUREMENT,
+    "battery": SensorStateClass.MEASUREMENT,
+    "current": SensorStateClass.MEASUREMENT,
+    "energy": SensorStateClass.TOTAL_INCREASING,
+    "energy_storage": SensorStateClass.MEASUREMENT,
+    "frequency": SensorStateClass.MEASUREMENT,
+    "power": SensorStateClass.MEASUREMENT,
+    "temperature": SensorStateClass.MEASUREMENT,
+    "voltage": SensorStateClass.MEASUREMENT,
+}
+
+# The BMS reports its coulomb counters in ampere hours. Home Assistant has no
+# device class or unit constant for charge, so these carry neither.
+AMPERE_HOUR = "Ah"
+
+
 SENSOR_TYPES: dict[str, dict[str, Any]] = {
     # status endpoint
     "status.currentMode.command": {
@@ -218,9 +243,10 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
     },
     "status.currentMode.parameters.power": {
         "name": "Current Mode Power",
-        "unit": None,
+        "unit": PERCENTAGE,
         "device_class": None,
         "entity_category": None,
+        "state_class": None,
         "icon": "mdi:flash",
     },
     "status.currentMode.parameters.soc": {
@@ -228,6 +254,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": PERCENTAGE,
         "device_class": "battery",
         "entity_category": None,
+        "state_class": None,
     },
     "status.energyFlow.acPvRole": {
         "name": "AC PV Role",
@@ -252,6 +279,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:battery-heart-outline",
     },
     "status.energyFlow.batteryStatus": {
@@ -338,18 +366,23 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "icon": "mdi:cog-outline",
     },
     # WARNING: Inverter power measurements are typically 10%-30% higher than actual values - accuracy is poor
+    # The API reports this as a percentage of generated energy used directly,
+    # not as a power reading.
     "status.energyFlow.selfConsumption": {
         "name": "Self Consumption",
-        "unit": UnitOfPower.WATT,
-        "device_class": "power",
+        "unit": PERCENTAGE,
+        "device_class": None,
         "entity_category": None,
+        "state_class": SensorStateClass.MEASUREMENT,
         "accuracy_warning": True,
+        "icon": "mdi:home-lightning-bolt",
     },
     "status.energyFlow.selfSufficiency": {
         "name": "Self Sufficiency",
         "unit": PERCENTAGE,
         "device_class": None,
         "entity_category": None,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:gauge",
     },
     "status.energyFlow.stateOfCharge": {
@@ -376,21 +409,25 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "icon": "mdi:leaf-circle",
     },
     # WARNING: 30-day metrics disabled by default - inverter measurements are typically 10%-30% higher than actual values
+    # A rolling window's absolute value is what matters, not its growth, so TOTAL
+    # is wrong; MEASUREMENT is barred for the energy device class, hence none.
     "status.last30daysEnergyFlow.gridConsumption": {
         "name": "30 Days Grid Consumption",
-        "unit": UnitOfPower.WATT,
-        "device_class": "power",
+        "unit": UnitOfEnergy.WATT_HOUR,
+        "device_class": "energy",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": None,
         "accuracy_warning": True,
     },
     "status.last30daysEnergyFlow.photovoltaicProduction": {
         "name": "30 Days PV Production",
-        "unit": UnitOfPower.WATT,
-        "device_class": "power",
+        "unit": UnitOfEnergy.WATT_HOUR,
+        "device_class": "energy",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "pv_related": True,
         "disabled_by_default": True,
+        "state_class": None,
         "accuracy_warning": True,
     },
     "status.last30daysEnergyFlow.selfConsumption": {
@@ -399,6 +436,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
         "accuracy_warning": True,
         "icon": "mdi:calendar-clock",
     },
@@ -408,22 +446,23 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
         "accuracy_warning": True,
         "icon": "mdi:calendar-gauge",
     },
     # WARNING: Today's metrics also affected by inverter accuracy issues
     "status.today.gridConsumption": {
         "name": "Today's Grid Consumption",
-        "unit": UnitOfPower.WATT,
-        "device_class": "power",
+        "unit": UnitOfEnergy.WATT_HOUR,
+        "device_class": "energy",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
         "accuracy_warning": True,
     },
     "status.today.photovoltaicProduction": {
         "name": "Today's PV Production",
-        "unit": UnitOfPower.WATT,
-        "device_class": "power",
+        "unit": UnitOfEnergy.WATT_HOUR,
+        "device_class": "energy",
         "entity_category": None,
         "pv_related": True,
         "accuracy_warning": True,
@@ -434,6 +473,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
         "accuracy_warning": True,
         "icon": "mdi:clock-outline",
     },
@@ -443,6 +483,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
         "accuracy_warning": True,
         "icon": "mdi:clock-check-outline",
     },
@@ -500,6 +541,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": "apparent_power",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": None,
     },
     "device.inverterSerialNumber": {
         "name": "Inverter Serial Number",
@@ -654,12 +696,14 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "disabled_by_default": True,
         "icon": "mdi:identifier",
     },
+    # Reads a constant 0 on at least the 3.6kW unit, so it is not a statistic.
     "technical_status.inverterPowerRating": {
         "name": "Technical Inverter Power Rating",
         "unit": UnitOfPower.WATT,
         "device_class": "power",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": None,
     },
     "technical_status.pv1Voltage": {
         "name": "PV1 Voltage",
@@ -725,17 +769,22 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": "temperature",
         "entity_category": EntityCategory.DIAGNOSTIC,
     },
+    # Lifetime counters that never reset, so TOTAL rather than TOTAL_INCREASING.
     "technical_status.bmsTotalCharge": {
         "name": "BMS Total Charge",
-        "unit": "kWh",
-        "device_class": "energy",
+        "unit": AMPERE_HOUR,
+        "device_class": None,
+        "precision": 0,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.TOTAL,
     },
     "technical_status.bmsTotalDischarge": {
         "name": "BMS Total Discharge",
-        "unit": "kWh",
-        "device_class": "energy",
+        "unit": AMPERE_HOUR,
+        "device_class": None,
+        "precision": 0,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.TOTAL,
     },
     "technical_status.bmsStateOfCharge": {
         "name": "Technical BMS State of Charge",
@@ -802,6 +851,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": "MB",
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:memory",
     },
     "maintenance_diagnostics.ramUsage.used": {
@@ -809,6 +859,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": "MB",
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:memory",
     },
     "maintenance_diagnostics.cpuUsage.used": {
@@ -816,6 +867,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": PERCENTAGE,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:cpu-64-bit",
     },
     # notification endpoints
@@ -824,6 +876,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:bell-badge-outline",
     },
     "notifications.total": {
@@ -831,6 +884,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": None,
         "device_class": None,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:bell-outline",
     },
 }
@@ -1144,15 +1198,12 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         if description.get("icon"):
             self._attr_icon = description["icon"]
 
-        # An explicit state_class wins; otherwise derive one from the device class.
-        if description.get("state_class") is not None:
+        # An explicit state_class wins, including an explicit None for setpoints
+        # and static ratings that would otherwise be recorded as statistics.
+        if "state_class" in description:
             self._attr_state_class = description["state_class"]
-        elif self._attr_device_class == "power":
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif self._attr_device_class == "energy":
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        elif self._attr_device_class == "energy_storage":
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif (device_class := description["device_class"]) is not None:
+            self._attr_state_class = DEVICE_CLASS_STATE_CLASSES.get(device_class)
 
     @property
     def native_value(self) -> str | int | float | None:
