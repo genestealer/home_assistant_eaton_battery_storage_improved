@@ -1,0 +1,131 @@
+"""Tests for the Eaton xStorage Home switch platform."""
+
+import pytest
+from homeassistant.components.switch import (
+    DOMAIN as SWITCH_DOMAIN,
+)
+from homeassistant.components.switch import (
+    SERVICE_TURN_OFF,
+    SERVICE_TURN_ON,
+)
+from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+
+from custom_components.eaton_battery_storage.const import DOMAIN
+
+from .conftest import BASE_URL, JSON_HEADERS, SERIAL, USER_INPUT, mock_device
+
+ENERGY_SAVING_ENTITY_ID = "switch.eaton_xstorage_home_energy_saving_mode"
+POWER_ENTITY_ID = "switch.eaton_xstorage_home_inverter_power"
+
+SETTINGS_RESULT = {
+    "country": {"geonameId": 2635167, "name": "United Kingdom"},
+    "city": {"geonameId": 2643743, "name": "London"},
+    "timezone": {"id": "Europe/London", "offset": 0},
+    "bmsBackupLevel": 30,
+    "energySavingMode": {"enabled": False, "houseConsumptionThreshold": 400},
+}
+
+
+def mock_settings(aioclient_mock: AiohttpClientMocker, *, successful: bool) -> None:
+    """Answer the settings read and write used by the energy saving switch."""
+    aioclient_mock.get(
+        f"{BASE_URL}/api/settings",
+        json={"successful": True, "result": SETTINGS_RESULT},
+        headers=JSON_HEADERS,
+    )
+    aioclient_mock.put(
+        f"{BASE_URL}/api/settings",
+        json={"successful": successful},
+        headers=JSON_HEADERS,
+    )
+
+
+async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
+    """Set up a config entry and return it."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+def last_payload(aioclient_mock: AiohttpClientMocker, method: str, path: str) -> dict:
+    """Return the body of the most recent write to an endpoint."""
+    return next(
+        data
+        for call_method, url, data, _headers in reversed(aioclient_mock.mock_calls)
+        if call_method.upper() == method and url.path == path
+    )
+
+
+async def test_energy_saving_mode_writes_whole_settings_document(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Only the targeted field changes and composite values are flattened."""
+    mock_settings(aioclient_mock, successful=True)
+    mock_device(aioclient_mock)
+    await setup_entry(hass)
+
+    assert hass.states.get(ENERGY_SAVING_ENTITY_ID).state == STATE_OFF
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: ENERGY_SAVING_ENTITY_ID},
+        blocking=True,
+    )
+
+    assert last_payload(aioclient_mock, "PUT", "/api/settings") == {
+        "settings": {
+            "country": 2635167,
+            "city": 2643743,
+            "timezone": "Europe/London",
+            "bmsBackupLevel": 30,
+            "energySavingMode": {"enabled": True, "houseConsumptionThreshold": 400},
+        }
+    }
+
+
+async def test_energy_saving_mode_reports_a_rejected_write(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A device that rejects the write surfaces a translated error."""
+    mock_settings(aioclient_mock, successful=False)
+    mock_device(aioclient_mock)
+    await setup_entry(hass)
+
+    with pytest.raises(HomeAssistantError, match="Failed to change energy saving mode"):
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_OFF,
+            {ATTR_ENTITY_ID: ENERGY_SAVING_ENTITY_ID},
+            blocking=True,
+        )
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_power_switch_accepts_an_empty_response(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The power endpoint answers with an empty body, which is not an error."""
+    aioclient_mock.post(f"{BASE_URL}/api/device/power")
+    await setup_entry(hass)
+
+    assert hass.states.get(POWER_ENTITY_ID).state == STATE_ON
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: POWER_ENTITY_ID},
+        blocking=True,
+    )
+
+    assert last_payload(aioclient_mock, "POST", "/api/device/power") == {
+        "parameters": {"state": False}
+    }
