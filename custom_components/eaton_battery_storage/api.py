@@ -344,8 +344,9 @@ class EatonBatteryAPI:
     async def set_device_power(self, state: bool) -> dict[str, Any]:
         """Control the power state of the device (on/off).
 
-        The device answers this endpoint with an empty body, so the result is
-        not checked for success.
+        This endpoint answers 200 with a bare JSON "" rather than a result
+        object, so there is nothing to check for success. See
+        docs/device-api-behaviour.md.
         """
         payload = {"parameters": {"state": state}}
         return await self.make_request("POST", "/api/device/power", json=payload)
@@ -368,7 +369,11 @@ class EatonBatteryAPI:
         )
 
     async def update_settings(self, settings_data: dict[str, Any]) -> dict[str, Any]:
-        """Update device settings via PUT /api/settings."""
+        """Update device settings via PUT /api/settings.
+
+        The device redirects this to the trailing-slash path with a 307, which
+        aiohttp follows while preserving the method.
+        """
         _LOGGER.debug(
             "Sending settings update: %s",
             json.dumps(settings_data, separators=(",", ":")),

@@ -47,7 +47,8 @@ def _full_scale_power(coordinator: EatonXstorageHomeCoordinator) -> int:
     """Return the inverter power rating used to convert percentages to watts.
 
     The range spans 3.6 kW to 6 kW, so the rating has to come from the device.
-    inverterPowerRating needs a technician account; inverterVaRating is the
+    inverterPowerRating needs a technician account and reads 0 on at least the
+    3.6 kW model, hence the greater-than-zero guard; inverterVaRating is the
     closest equivalent a customer account can read.
     """
     data = coordinator.data or {}
