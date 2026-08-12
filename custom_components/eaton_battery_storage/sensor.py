@@ -564,6 +564,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "entity_category": EntityCategory.DIAGNOSTIC,
         "pv_related": True,
         "disabled_by_default": True,
+        "state_class": None,
     },
     "device.bmsCapacity": {
         "name": "BMS Capacity",

@@ -70,6 +70,11 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
 
 ### Fixed
 
+The unit, enum and `services.yaml` fixes below had no issue raised against them. They were
+found while verifying the sensor platform against the API documentation, a live inverter and
+the Home Assistant log, so there is nothing to link them to beyond this entry and the
+readings recorded in [the device API behaviour notes](docs/device-api-behaviour.md).
+
 - A running manual discharge is no longer reported as a manual charge. The device echoes
   both directions back under the same command, so the direction is now read from the
   `action` parameter that distinguishes them. This affects the **Current operation mode**
@@ -84,8 +89,11 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
   which left the voltage, current, temperature, frequency and battery sensors, and the
   percentage and diagnostic counters, out of statistics entirely. String and enum sensors
   still declare none, as do the setpoints (**Current Mode SOC** and **Current Mode Power**)
-  and the static ratings (**Inverter VA Rating** and **Technical Inverter Power Rating**,
-  the latter reading a constant 0 on at least the 3.6 kW model).
+  and the static ratings (**Inverter VA Rating**, **Inverter Nominal VPV** and **Technical
+  Inverter Power Rating**, the last reading a constant 0 on at least the 3.6 kW model).
+  This is the general form of the defect reported in
+  [#34](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/34), which
+  fixed the two state of charge sensors specifically.
 - **Self Consumption** was reported in watts with the `power` device class, but the device
   reports it as a percentage of generated energy used directly. It is now a percentage,
   matching the 30-day and today's self-consumption sensors, which were already correct.
