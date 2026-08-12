@@ -318,26 +318,48 @@ def resolve_mode_command(mode: dict[str, Any]) -> Any:
 # Current Mode Recurrence mapping for human-readable display
 CURRENT_MODE_RECURRENCE_MAP: dict[str, str] = {
     "DAILY": "Daily",
+    "DEFAULT_EVENT": "Default",
     "MANUAL_EVENT": "Manual Event",
     "WEEKLY": "Weekly",
 }
 
 # Current Mode Type mapping for human-readable display
-CURRENT_MODE_TYPE_MAP: dict[str, str] = {"MANUAL": "Manual", "SCHEDULE": "Scheduled"}
+CURRENT_MODE_TYPE_MAP: dict[str, str] = {
+    "DEFAULT": "Default",
+    "MANUAL": "Manual",
+    "SCHEDULE": "Scheduled",
+}
 
-# Operation Mode mapping for human-readable display
+# Which side of an energy flow a connection is on, as the dashboard reads them.
+ENERGY_FLOW_ROLE_MAP: dict[str, str] = {
+    "CONSUMER": "Consuming",
+    "DISCONNECTED": "Disconnected",
+    "NONE": "Idle",
+    "PRODUCER": "Producing",
+}
+
+# Operation Mode mapping for human-readable display. The values without a BAT_
+# prefix come from the device web interface's BATTERY_MODE_* translation keys.
 OPERATION_MODE_MAP: dict[str, str] = {
+    "BACKUP": "Backup",
+    "BASIC": "Basic",
     "BAT_CHARGING": "Charging",
     "BAT_DISCHARGING": "Discharging",
     "BAT_IDLE": "Idle",
     "CHARGING": "Charging",
     "DISCHARGING": "Discharging",
     "FAULT": "Fault",
+    "FREQUENCY_REGULATION": "Frequency Regulation",
+    "GRID_INJECTION": "Grid Injection",
     "IDLE": "Idle",
     "MAXIMIZE_AUTO_CONSUMPTION": "Maximize Auto Consumption",
+    "MIN_COST_ELECTRICITY": "Minimum Cost of Electricity",
     "OFF": "Off",
+    "PEAK_SHAVING": "Peak Shaving",
     "STANDBY": "Standby",
+    "STATE_GRID_INJECTION": "Variable Grid Injection",
     "UNKNOWN": "Unknown",
+    "WAITING": "Waiting",
 }
 
 # Accuracy warning message for power measurements

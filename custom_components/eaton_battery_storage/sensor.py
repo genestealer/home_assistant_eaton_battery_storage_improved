@@ -49,6 +49,7 @@ from .const import (
     CURRENT_MODE_COMMAND_MAP,
     CURRENT_MODE_RECURRENCE_MAP,
     CURRENT_MODE_TYPE_MAP,
+    ENERGY_FLOW_ROLE_MAP,
     NOTIFICATION_SUBTYPE_MAP,
     OPERATION_MODE_MAP,
     POWER_ACCURACY_WARNING,
@@ -99,6 +100,11 @@ VALUE_MAPS: dict[str, dict[str, str]] = {
     "technical_status.operationMode": OPERATION_MODE_MAP,
     "technical_status.bmsState": BMS_STATE_MAP,
     "status.energyFlow.batteryStatus": BMS_STATE_MAP,
+    "status.energyFlow.acPvRole": ENERGY_FLOW_ROLE_MAP,
+    "status.energyFlow.dcPvRole": ENERGY_FLOW_ROLE_MAP,
+    "status.energyFlow.gridRole": ENERGY_FLOW_ROLE_MAP,
+    "status.energyFlow.criticalLoadRole": ENERGY_FLOW_ROLE_MAP,
+    "status.energyFlow.nonCriticalLoadRole": ENERGY_FLOW_ROLE_MAP,
 }
 
 

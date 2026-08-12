@@ -157,6 +157,62 @@ def test_declared_units_are_valid_for_their_device_class() -> None:
 
 
 @pytest.mark.parametrize(
+    ("status", "key", "expected"),
+    [
+        pytest.param(
+            {"energyFlow": {"gridRole": "PRODUCER"}},
+            "status.energyFlow.gridRole",
+            "Producing",
+            id="grid_role_producer",
+        ),
+        pytest.param(
+            {"energyFlow": {"nonCriticalLoadRole": "CONSUMER"}},
+            "status.energyFlow.nonCriticalLoadRole",
+            "Consuming",
+            id="load_role_consumer",
+        ),
+        pytest.param(
+            {"energyFlow": {"criticalLoadRole": "DISCONNECTED"}},
+            "status.energyFlow.criticalLoadRole",
+            "Disconnected",
+            id="load_role_disconnected",
+        ),
+        pytest.param(
+            {"energyFlow": {"operationMode": "BASIC"}},
+            "status.energyFlow.operationMode",
+            "Basic",
+            id="operation_mode_basic",
+        ),
+        pytest.param(
+            {"currentMode": {"recurrence": "DEFAULT_EVENT"}},
+            "status.currentMode.recurrence",
+            "Default",
+            id="recurrence_default_event",
+        ),
+        pytest.param(
+            {"currentMode": {"type": "DEFAULT"}},
+            "status.currentMode.type",
+            "Default",
+            id="type_default",
+        ),
+    ],
+)
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_enum_values_seen_on_real_hardware_are_labelled(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    status: dict[str, Any],
+    key: str,
+    expected: str,
+) -> None:
+    """Values the API documentation omits still reach the user as readable text."""
+    mock_device(aioclient_mock, status={**STATUS_RESULT, **status})
+    entry = await setup_entry(hass)
+
+    assert sensor_state(hass, entry, key) == expected
+
+
+@pytest.mark.parametrize(
     ("technical_status", "key", "expected"),
     [
         pytest.param(
