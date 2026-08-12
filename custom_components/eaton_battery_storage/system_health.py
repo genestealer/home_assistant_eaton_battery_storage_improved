@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import system_health
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN
@@ -20,11 +21,18 @@ def async_register(
 
 async def system_health_info(hass: HomeAssistant) -> dict[str, Any]:
     """Get info for the system health panel."""
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
-        return {}
+    entry = next(
+        (
+            entry
+            for entry in hass.config_entries.async_entries(DOMAIN)
+            if entry.state is ConfigEntryState.LOADED
+        ),
+        None,
+    )
+    if entry is None:
+        return {"device_reachable": False, "last_successful_update": "Never"}
 
-    coordinator = entries[0].runtime_data
+    coordinator = entry.runtime_data
     return {
         "device_reachable": coordinator.last_update_success,
         "api_host": coordinator.api.host,
