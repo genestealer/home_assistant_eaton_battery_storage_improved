@@ -2,9 +2,39 @@
 
 from __future__ import annotations
 
+# Integration domain
+DOMAIN = "eaton_battery_storage"
+
 # Account type constants
 ACCOUNT_TYPE_CUSTOMER = "customer"
 ACCOUNT_TYPE_TECHNICIAN = "tech"
+
+# Config entry keys that have no Home Assistant constant
+CONF_EMAIL = "email"
+CONF_HAS_PV = "has_pv"
+CONF_INVERTER_SN = "inverter_sn"
+CONF_USER_TYPE = "user_type"
+CONF_VERIFY_SSL = "verify_ssl"
+
+# The inverter ships with a self-signed certificate, so verification is off by
+# default to keep existing installations working.
+DEFAULT_VERIFY_SSL = False
+
+# The sign-in endpoint requires an email for technician accounts but never
+# validates it.
+API_EMAIL = "anything@anything.com"
+APP_ID = "com.eaton.xstoragehome"
+
+# Fallback full-scale inverter power in watts. The xStorage Home range spans
+# 3.6 kW to 6 kW, so this is only used when the device reports neither
+# technical_status.inverterPowerRating nor device.inverterVaRating.
+DEFAULT_INVERTER_POWER_RATING = 3600
+
+
+def sensor_unique_id(entry_id: str, key: str) -> str:
+    """Build the per-entry unique ID for a sensor data key."""
+    return f"{entry_id}_{key.replace('.', '_')}"
+
 
 # BMS State mapping for human-readable display
 BMS_STATE_MAP: dict[str, str] = {
@@ -36,23 +66,23 @@ NOTIFICATION_SUBTYPE_MAP: dict[str, dict[str, str]] = {
     # Battery faults
     "BATTERY_VOLTAGE_HIGH": {
         "description": "The battery voltage is too high.",
-        "remedy": "Restart inverter; contact service if fault persists.",
+        "remedy": "Restart battery; contact service if fault persists.",
     },
     "BATTERY_VOLTAGE_LOW": {
         "description": "The battery voltage is too low.",
-        "remedy": "Restart inverter; contact service if fault persists.",
+        "remedy": "Restart battery; contact service if fault persists.",
     },
     "BATTERY_OVER_TEMP": {
-        "description": "Battery temperature is too high.",
+        "description": "battery temperature is too high.",
         "remedy": "Restart inverter; contact service if fault persists.",
     },
     "BATTERY_UNDER_TEMP": {
         "description": "Battery temperature is too low.",
-        "remedy": "Restart inverter; contact service if fault persists.",
+        "remedy": "Restart battery; contact service if fault persists.",
     },
     "BMS_FAULT": {
         "description": "General BMS fault detected.",
-        "remedy": "Restart inverter; contact service if fault persists.",
+        "remedy": "Restart battery; contact service if fault persists.",
     },
     "BMS_DEEP_UV": {
         "description": "Battery deep under-voltage.",
@@ -271,9 +301,6 @@ CURRENT_MODE_RECURRENCE_MAP: dict[str, str] = {
 
 # Current Mode Type mapping for human-readable display
 CURRENT_MODE_TYPE_MAP: dict[str, str] = {"MANUAL": "Manual", "SCHEDULE": "Scheduled"}
-
-# Integration domain
-DOMAIN = "eaton_battery_storage"
 
 # Operation Mode mapping for human-readable display
 OPERATION_MODE_MAP: dict[str, str] = {

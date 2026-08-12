@@ -10,27 +10,59 @@ today, and last30daysEnergyFlow sections.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     TimestampDataUpdateCoordinator,
     UpdateFailed,
 )
 
-from .api import EatonBatteryAPI
-from .const import DOMAIN
+from .api import EatonAuthError, EatonBatteryAPI, EatonError, EatonResponseError
+from .const import ACCOUNT_TYPE_TECHNICIAN, CONF_USER_TYPE, DOMAIN
+from .settings_helpers import async_get_and_transform_settings
 
 _LOGGER = logging.getLogger(__name__)
+
+type EatonConfigEntry = ConfigEntry[EatonXstorageHomeCoordinator]
+
+
+def _unwrap(response: dict[str, Any]) -> dict[str, Any]:
+    """Return the payload of an optional API response."""
+    result = response.get("result")
+    return result if isinstance(result, dict) else {}
+
+
+def _unwrap_required(response: dict[str, Any], name: str) -> dict[str, Any]:
+    """Return the payload of an API response the integration cannot work without."""
+    result = response.get("result")
+    if not isinstance(result, dict) or not result:
+        raise EatonResponseError(f"Device returned no {name} data: {response}")
+    return result
 
 
 class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching data from the Eaton xStorage Home API."""
 
-    def __init__(self, hass: HomeAssistant, api: EatonBatteryAPI, config_entry) -> None:
+    config_entry: EatonConfigEntry
+    # Populated by the number platform, which owns the local helper values.
+    number_values: dict[str, float]
+    number_store: Store[dict[str, float]]
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: EatonBatteryAPI,
+        config_entry: EatonConfigEntry,
+    ) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -40,149 +72,100 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
             config_entry=config_entry,
         )
         self.api = api
+        self._settings_lock = asyncio.Lock()
+        self._unavailable_logged = False
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information for this coordinator."""
         device_data = self.data.get("device", {}) if self.data else {}
+        serial = device_data.get("inverterSerialNumber")
 
         device_info = DeviceInfo(
-            identifiers={(DOMAIN, self.api.host)},
+            # Never key the device on an IP/hostname: a DHCP change would orphan it.
+            identifiers={(DOMAIN, serial or self.config_entry.entry_id)},
             name="Eaton xStorage Home",
             manufacturer="Eaton",
             model="xStorage Home",
-            # Do not set entry_type to an invalid string; omit to use default behavior
             configuration_url=f"https://{self.api.host}",
         )
 
-        # Add detailed device information if available
-        if device_data:
-            # Add firmware version (software version)
-            if "firmwareVersion" in device_data:
-                device_info["sw_version"] = device_data["firmwareVersion"]
-
-            # Add more specific model name if available
-            if "inverterModelName" in device_data:
-                device_info["model"] = (
-                    f"xStorage Home ({device_data['inverterModelName']})"
-                )
-
-            # Add serial number if available (inverter serial as primary identifier)
-            if "inverterSerialNumber" in device_data:
-                device_info["serial_number"] = device_data["inverterSerialNumber"]
-                # Also add as an additional identifier
-                device_info["identifiers"].add(
-                    (DOMAIN, device_data["inverterSerialNumber"])
-                )
-
-            # Add hardware version (BMS firmware version)
-            if "bmsFirmwareVersion" in device_data:
-                device_info["hw_version"] = device_data["bmsFirmwareVersion"]
+        if serial:
+            device_info["serial_number"] = serial
+        if "firmwareVersion" in device_data:
+            device_info["sw_version"] = device_data["firmwareVersion"]
+        if "inverterModelName" in device_data:
+            device_info["model"] = f"xStorage Home ({device_data['inverterModelName']})"
+        if "bmsFirmwareVersion" in device_data:
+            device_info["hw_version"] = device_data["bmsFirmwareVersion"]
 
         return device_info
+
+    async def async_patch_settings(
+        self, mutate: Callable[[dict[str, Any]], None]
+    ) -> None:
+        """Apply a mutation to the device settings atomically.
+
+        The device only accepts writes of the whole settings document, so the
+        read-modify-write cycle is serialized to avoid lost updates.
+        """
+        async with self._settings_lock:
+            settings = await async_get_and_transform_settings(self.api)
+            mutate(settings)
+            await self.api.update_settings({"settings": settings})
+        await self.async_request_refresh()
+
+    async def _async_fetch_all(self) -> dict[str, Any]:
+        """Fetch every endpoint, tolerating failures of the optional ones."""
+        # Core data: if these fail the device is considered offline.
+        results: dict[str, Any] = {
+            "status": _unwrap_required(await self.api.get_status(), "status"),
+            "device": _unwrap_required(await self.api.get_device(), "device"),
+        }
+
+        optional: dict[str, Callable[[], Coroutine[Any, Any, dict[str, Any]]]] = {
+            "config_state": self.api.get_config_state,
+            "settings": self.api.get_settings,
+            "schedule": self.api.get_schedule,
+            "notifications": self.api.get_notifications,
+            "unread_notifications_count": self.api.get_unread_notifications_count,
+        }
+        if (
+            self.config_entry.data.get(CONF_USER_TYPE, ACCOUNT_TYPE_TECHNICIAN)
+            == ACCOUNT_TYPE_TECHNICIAN
+        ):
+            optional["technical_status"] = self.api.get_technical_status
+            optional["maintenance_diagnostics"] = self.api.get_maintenance_diagnostics
+        else:
+            results["technical_status"] = {}
+            results["maintenance_diagnostics"] = {}
+
+        responses = await asyncio.gather(
+            *(fetch() for fetch in optional.values()), return_exceptions=True
+        )
+        for name, response in zip(optional, responses, strict=True):
+            if isinstance(response, BaseException):
+                _LOGGER.debug("Failed to fetch %s: %s", name, response)
+                results[name] = {}
+            else:
+                results[name] = _unwrap(response)
+
+        return results
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API endpoint."""
         try:
-            # Fetch all endpoints, handling errors gracefully
-            results: dict[str, Any] = {}
-
-            # Core data that should always be available; if these fail,
-            # consider the device offline and raise UpdateFailed so entities
-            # become unavailable until it recovers.
-            status = await self.api.get_status()
-            if not status or (
-                isinstance(status, dict)
-                and status.get("successful") is False
-                and not status.get("result")
-            ):
-                err_msg = status.get("error") if isinstance(status, dict) else "no data"
-                raise UpdateFailed(
-                    f"Error communicating with device (status): {err_msg}"
-                )
-            results["status"] = (
-                status.get("result", {}) if isinstance(status, dict) else status
-            )
-
-            device = await self.api.get_device()
-            if not device or (
-                isinstance(device, dict)
-                and device.get("successful") is False
-                and not device.get("result")
-            ):
-                err_msg = device.get("error") if isinstance(device, dict) else "no data"
-                raise UpdateFailed(
-                    f"Error communicating with device (device): {err_msg}"
-                )
-            results["device"] = (
-                device.get("result", {}) if isinstance(device, dict) else device
-            )
-
-            # Additional data that may not always be available
-            for endpoint, method in [
-                ("config_state", self.api.get_config_state),
-                ("settings", self.api.get_settings),
-                ("schedule", self.api.get_schedule),
-            ]:
-                try:
-                    data = await method()
-                    results[endpoint] = (
-                        data.get("result", {})
-                        if data and isinstance(data, dict) and "result" in data
-                        else data or {}
-                    )
-                except Exception as err:
-                    _LOGGER.debug("Failed to fetch %s: %s", endpoint, err)
-                    results[endpoint] = {}
-
-            # Technical data that requires technician account
-            user_type = self.config_entry.data.get("user_type", "tech")
-            if user_type == "tech":
-                for endpoint, method in [
-                    ("technical_status", self.api.get_technical_status),
-                    ("maintenance_diagnostics", self.api.get_maintenance_diagnostics),
-                ]:
-                    try:
-                        data = await method()
-                        results[endpoint] = data.get("result", {}) if data else {}
-                    except Exception as err:
-                        _LOGGER.debug(
-                            "Failed to fetch %s (may require technician account): %s",
-                            endpoint,
-                            err,
-                        )
-                        results[endpoint] = {}
-            else:
-                # Customer account - don't attempt to fetch technical endpoints
-                _LOGGER.debug("Customer account - skipping technical endpoints")
-                results["technical_status"] = {}
-                results["maintenance_diagnostics"] = {}
-
-            # Notification data
-            try:
-                notifications = await self.api.get_notifications()
-                results["notifications"] = (
-                    notifications.get("result", {}) if notifications else {}
-                )
-            except Exception as err:
-                _LOGGER.debug("Failed to fetch notifications: %s", err)
-                results["notifications"] = {}
-
-            try:
-                unread_count = await self.api.get_unread_notifications_count()
-                results["unread_notifications_count"] = (
-                    unread_count.get("result", {}) if unread_count else {}
-                )
-            except Exception as err:
-                _LOGGER.debug("Failed to fetch unread notifications count: %s", err)
-                results["unread_notifications_count"] = {}
-
-            return results
-
-        except Exception as err:
-            _LOGGER.error("Error fetching data from Eaton xStorage Home: %s", err)
+            results = await self._async_fetch_all()
+        except EatonAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except EatonError as err:
+            if not self._unavailable_logged:
+                self._unavailable_logged = True
+                _LOGGER.warning("Eaton xStorage Home is unavailable: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
+        if self._unavailable_logged:
+            self._unavailable_logged = False
+            _LOGGER.info("Eaton xStorage Home is available again")
 
-# Alias for backward compatibility
-EatonBatteryStorageCoordinator = EatonXstorageHomeCoordinator
+        return results
