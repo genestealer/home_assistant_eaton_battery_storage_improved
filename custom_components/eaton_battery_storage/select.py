@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import EatonError
-from .const import DOMAIN
+from .const import DOMAIN, resolve_mode_command
 from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
 from .entity import EatonEntity
 
@@ -156,7 +156,7 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
         """Return the current selected option."""
         status = (self.coordinator.data or {}).get("status", {})
         current_mode = status.get("currentMode", {})
-        return self._cmd_to_label.get(current_mode.get("command"))
+        return self._cmd_to_label.get(resolve_mode_command(current_mode))
 
     def _command_duration(self, command: str, helper_values: dict) -> int:
         """Return the run duration in hours configured for this command."""

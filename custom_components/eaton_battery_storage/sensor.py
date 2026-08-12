@@ -48,6 +48,7 @@ from .const import (
     OPERATION_MODE_MAP,
     POWER_ACCURACY_WARNING,
     TECHNICIAN_ONLY_SENSORS,
+    resolve_mode_command,
     sensor_unique_id,
 )
 from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
@@ -59,6 +60,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CELL_VOLTAGE_DELTA_KEY = "technical_status.bmsCellVoltageDelta"
 BMS_FAULT_CODE_KEY = "technical_status.bmsFaultCode"
+CURRENT_MODE_COMMAND_KEY = "status.currentMode.command"
 
 # The BMS reports cell voltages in mV; a lower reading is a sensor error.
 MIN_CELL_VOLTAGE_MV = 1000
@@ -355,6 +357,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "unit": PERCENTAGE,
         "device_class": "battery",
         "entity_category": None,
+        "state_class": SensorStateClass.MEASUREMENT,
     },
     "status.energyFlow.energySavingModeEnabled": {
         "name": "Energy Saving Mode Enabled",
@@ -740,6 +743,7 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
         "device_class": "battery",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "disabled_by_default": True,
+        "state_class": SensorStateClass.MEASUREMENT,
     },
     "technical_status.bmsState": {
         "name": "BMS State",
@@ -1140,8 +1144,10 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         if description.get("icon"):
             self._attr_icon = description["icon"]
 
-        # Set state_class for power and energy sensors
-        if self._attr_device_class == "power":
+        # An explicit state_class wins; otherwise derive one from the device class.
+        if description.get("state_class") is not None:
+            self._attr_state_class = description["state_class"]
+        elif self._attr_device_class == "power":
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif self._attr_device_class == "energy":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -1156,7 +1162,10 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         if self._key == CELL_VOLTAGE_DELTA_KEY:
             return _cell_voltage_delta(data.get("technical_status", {}))
 
-        value = _value_at(data, self._key)
+        if self._key == CURRENT_MODE_COMMAND_KEY:
+            value = resolve_mode_command(data.get("status", {}).get("currentMode", {}))
+        else:
+            value = _value_at(data, self._key)
 
         if self._key == BMS_FAULT_CODE_KEY:
             return _format_fault_codes(value)

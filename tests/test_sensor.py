@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -32,6 +33,27 @@ def sensor_state(hass: HomeAssistant, entry: MockConfigEntry, key: str) -> str:
         SENSOR_DOMAIN, DOMAIN, sensor_unique_id(entry.entry_id, key)
     )
     return hass.states.get(entity_id).state
+
+
+async def test_state_of_charge_is_recorded_as_a_measurement(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The state of charge needs a state class to reach long term statistics."""
+    mock_device(
+        aioclient_mock,
+        status={**STATUS_RESULT, "energyFlow": {"stateOfCharge": 62}},
+    )
+    entry = await setup_entry(hass)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        SENSOR_DOMAIN,
+        DOMAIN,
+        sensor_unique_id(entry.entry_id, "status.energyFlow.stateOfCharge"),
+    )
+    state = hass.states.get(entity_id)
+
+    assert state.state == "62"
+    assert state.attributes["state_class"] is SensorStateClass.MEASUREMENT
 
 
 @pytest.mark.parametrize(
@@ -169,6 +191,23 @@ async def test_technical_status_values(
             "status.currentMode.command",
             "Charge",
             id="mode_command_is_translated",
+        ),
+        pytest.param(
+            {
+                "currentMode": {
+                    "command": "SET_CHARGE",
+                    "parameters": {"action": "ACTION_DISCHARGE"},
+                }
+            },
+            "status.currentMode.command",
+            "Discharge",
+            id="discharge_action_wins_over_the_echoed_command",
+        ),
+        pytest.param(
+            {"currentMode": {"command": "SET_DISCHARGE"}},
+            "status.currentMode.command",
+            "Discharge",
+            id="discharge_without_an_action_is_translated",
         ),
         pytest.param(
             {"currentMode": {"type": "SCHEDULE"}},

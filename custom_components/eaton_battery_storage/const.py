@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 # Integration domain
 DOMAIN = "eaton_battery_storage"
 
@@ -291,6 +293,27 @@ CURRENT_MODE_COMMAND_MAP: dict[str, str] = {
     "SET_PEAK_SHAVING": "Peak Shaving",
     "SET_VARIABLE_GRID_INJECTION": "Variable Grid Injection",
 }
+
+# The device reports a running manual charge and a running manual discharge under
+# the same command, so only the action parameter tells the two directions apart.
+MANUAL_MODE_COMMANDS = frozenset({"SET_CHARGE", "SET_DISCHARGE"})
+ACTION_TO_MANUAL_COMMAND: dict[str, str] = {
+    "ACTION_CHARGE": "SET_CHARGE",
+    "ACTION_DISCHARGE": "SET_DISCHARGE",
+}
+
+
+def resolve_mode_command(mode: dict[str, Any]) -> Any:
+    """Return the command of a mode, corrected for its charge/discharge action."""
+    command = mode.get("command")
+    if command not in MANUAL_MODE_COMMANDS:
+        return command
+    parameters = mode.get("parameters")
+    action = parameters.get("action") if isinstance(parameters, dict) else None
+    if not isinstance(action, str):
+        return command
+    return ACTION_TO_MANUAL_COMMAND.get(action, command)
+
 
 # Current Mode Recurrence mapping for human-readable display
 CURRENT_MODE_RECURRENCE_MAP: dict[str, str] = {
