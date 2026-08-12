@@ -103,6 +103,27 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
   device returns coulomb counts: 17005 on a 4.2 kWh battery would be 4048 full cycles in
   the ~13 months of records, whereas 17005 Ah over the pack's ~42.6 Ah works out at almost
   exactly one cycle a day. They are now reported in Ah with state class `total`.
+- Values the device returns that were missing from the display maps no longer leak the raw
+  API string to the dashboard. The five energy flow role sensors (**Grid Role**, **AC/DC PV
+  Role**, **Critical** and **Non-Critical Load Role**) had no mapping at all and now read
+  Producing, Consuming, Disconnected or Idle instead of `PRODUCER`, `CONSUMER`,
+  `DISCONNECTED` and `NONE`. **Operation Mode** gained the eight modes the device's own web
+  interface lists but the API documentation omits, including the `BASIC` it reports while
+  running its default mode, and **Current Mode Recurrence** and **Current Mode Type** gained
+  the `DEFAULT_EVENT` and `DEFAULT` they report at the same time. Automations matching on
+  the raw strings for these seven sensors need updating.
+- `services.yaml` was missing, so Home Assistant logged "Failed to load services.yaml for
+  integration: eaton_battery_storage" every time something asked for the service list. The
+  `reload` service the integration registers is now described there and in the translations.
+
+### Upgrading
+
+The unit corrections above mean the recorder holds statistics for **Self Consumption**,
+**BMS Total Charge** and **BMS Total Discharge** in the old units, and it will log
+"cannot be converted to the unit of previously compiled statistics" and stop recording them
+until that history is cleared. Those old readings were wrong, so delete them: go to
+**Developer tools → Statistics**, find each of the three sensors, and use **Fix issue** to
+remove the previously compiled statistics. Recording resumes on the next cycle.
 - System health no longer crashes when the first config entry is disabled or retrying setup.
 - The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
 - Cell voltage sensors declare their display precision explicitly instead of relying on
