@@ -68,6 +68,8 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
         "key": CHARGE_POWER_WATT,
         "name": "Charge Power (Watt)",
         "translation_key": "charge_power_watt",
+        # Baseline for a 3.6 kW inverter; the platform replaces these bounds
+        # with the rating the device reports (the range spans 3.6 kW to 6 kW).
         "min": 180,
         "max": 3600,
         "step": 1,
@@ -112,6 +114,8 @@ NUMBER_ENTITIES: list[NumberEntityDefinition] = [
         "key": DISCHARGE_POWER_WATT,
         "name": "Discharge Power (Watt)",
         "translation_key": "discharge_power_watt",
+        # Baseline for a 3.6 kW inverter; the platform replaces these bounds
+        # with the rating the device reports (the range spans 3.6 kW to 6 kW).
         "min": 180,
         "max": 3600,
         "step": 1,

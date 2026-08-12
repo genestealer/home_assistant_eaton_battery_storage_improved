@@ -29,16 +29,17 @@ import logging
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ACCOUNT_TYPE_TECHNICIAN,
     BMS_FAULT_CODE_MAP,
     BMS_NO_FAULT,
     BMS_STATE_MAP,
+    CONF_HAS_PV,
+    CONF_USER_TYPE,
     CURRENT_MODE_ACTION_MAP,
     CURRENT_MODE_COMMAND_MAP,
     CURRENT_MODE_RECURRENCE_MAP,
@@ -46,10 +47,115 @@ from .const import (
     NOTIFICATION_SUBTYPE_MAP,
     OPERATION_MODE_MAP,
     POWER_ACCURACY_WARNING,
+    TECHNICIAN_ONLY_SENSORS,
+    sensor_unique_id,
 )
-from .coordinator import EatonXstorageHomeCoordinator
+from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
+from .entity import EatonEntity
+
+PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
+
+CELL_VOLTAGE_DELTA_KEY = "technical_status.bmsCellVoltageDelta"
+BMS_FAULT_CODE_KEY = "technical_status.bmsFaultCode"
+
+# The BMS reports cell voltages in mV; a lower reading is a sensor error.
+MIN_CELL_VOLTAGE_MV = 1000
+CELL_VOLTAGE_KEYS = frozenset(
+    {
+        "technical_status.bmsHighestCellVoltage",
+        "technical_status.bmsLowestCellVoltage",
+    }
+)
+
+# These sensors report 0 when the device has no reading rather than a real zero.
+ZERO_IS_INVALID_KEYS = frozenset(
+    {
+        "technical_status.bmsMaxTemperature",
+        "technical_status.bmsMinTemperature",
+        "technical_status.bmsAvgTemperature",
+        "technical_status.bmsTotalCharge",
+        "technical_status.bmsTotalDischarge",
+        "technical_status.bmsVoltage",
+        "technical_status.gridFrequency",
+    }
+)
+
+# Sensor keys whose raw string value has a human-readable label.
+VALUE_MAPS: dict[str, dict[str, str]] = {
+    "status.currentMode.command": CURRENT_MODE_COMMAND_MAP,
+    "status.currentMode.parameters.action": CURRENT_MODE_ACTION_MAP,
+    "status.currentMode.type": CURRENT_MODE_TYPE_MAP,
+    "status.currentMode.recurrence": CURRENT_MODE_RECURRENCE_MAP,
+    "status.energyFlow.operationMode": OPERATION_MODE_MAP,
+    "technical_status.operationMode": OPERATION_MODE_MAP,
+    "technical_status.bmsState": BMS_STATE_MAP,
+    "status.energyFlow.batteryStatus": BMS_STATE_MAP,
+}
+
+
+def _value_at(data: dict[str, Any], key: str) -> Any:
+    """Return the scalar at a dotted key path, or None if there is none."""
+    value: Any = data
+    for part in key.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return None if isinstance(value, dict) else value
+
+
+def _format_fault_codes(value: Any) -> Any:
+    """Render the BMS fault codes, which arrive as a list or null when healthy."""
+    if value is None:
+        return BMS_NO_FAULT
+    if not isinstance(value, list):
+        return value
+    return (
+        ", ".join(BMS_FAULT_CODE_MAP.get(code, str(code)) for code in value)[:255]
+        or BMS_NO_FAULT
+    )
+
+
+def _cell_voltage_delta(technical_status: dict[str, Any]) -> float | None:
+    """Return the spread between the highest and lowest cell voltage."""
+    highest = technical_status.get("bmsHighestCellVoltage")
+    lowest = technical_status.get("bmsLowestCellVoltage")
+    if highest is None or lowest is None:
+        _LOGGER.debug(
+            "Cell voltage delta needs both readings, got %s and %s", highest, lowest
+        )
+        return None
+
+    try:
+        highest, lowest = float(highest), float(lowest)
+    except (TypeError, ValueError):
+        _LOGGER.error("Cell voltages are not numeric: %s and %s", highest, lowest)
+        return None
+
+    if min(highest, lowest) < MIN_CELL_VOLTAGE_MV:
+        _LOGGER.error(
+            "Cell voltage below %smV, delta not calculated: %s and %s",
+            MIN_CELL_VOLTAGE_MV,
+            highest,
+            lowest,
+        )
+        return None
+
+    return round(highest - lowest, 1)
+
+
+def _is_device_time(value: Any) -> bool:
+    """Return True when the value looks like the HHMM the API reports."""
+    return isinstance(value, int) or (isinstance(value, str) and value.isdigit())
+
+
+def _format_device_time(value: int | str) -> str | None:
+    """Format an HHMM reading as HH:MM, or None when it is out of range."""
+    hour, minute = divmod(int(value), 100)
+    if 0 <= hour < 24 and 0 <= minute < 60:
+        return f"{hour:02d}:{minute:02d}"
+    return None
 
 
 def _translation_key_from_key(key: str) -> str:
@@ -57,7 +163,7 @@ def _translation_key_from_key(key: str) -> str:
     return key.replace(".", "_").replace("-", "_").lower()
 
 
-SENSOR_TYPES = {
+SENSOR_TYPES: dict[str, dict[str, Any]] = {
     # status endpoint
     "status.currentMode.command": {
         "name": "Current Mode Command",
@@ -653,18 +759,21 @@ SENSOR_TYPES = {
         "name": "BMS Highest Cell Voltage",
         "unit": "mV",
         "device_class": "voltage",
+        "precision": 0,
         "entity_category": EntityCategory.DIAGNOSTIC,
     },
     "technical_status.bmsLowestCellVoltage": {
         "name": "BMS Lowest Cell Voltage",
         "unit": "mV",
         "device_class": "voltage",
+        "precision": 0,
         "entity_category": EntityCategory.DIAGNOSTIC,
     },
     "technical_status.bmsCellVoltageDelta": {
         "name": "BMS Cell Voltage Delta",
         "unit": "mV",
         "device_class": "voltage",
+        "precision": 0,
         "entity_category": EntityCategory.DIAGNOSTIC,
     },
     "technical_status.tidaProtocolVersion": {
@@ -725,18 +834,16 @@ SENSOR_TYPES = {
 
 async def async_setup_entry(
     _hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EatonConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Eaton xStorage Home sensor platform."""
-    from .const import TECHNICIAN_ONLY_SENSORS
-
-    coordinator: EatonXstorageHomeCoordinator = config_entry.runtime_data
-    has_pv = config_entry.data.get("has_pv", False)
-    user_type = config_entry.data.get(
-        "user_type", "tech"
-    )  # Default to tech for backward compatibility
-    is_technician = user_type == "tech"
+    coordinator = config_entry.runtime_data
+    has_pv = config_entry.data.get(CONF_HAS_PV, False)
+    is_technician = (
+        config_entry.data.get(CONF_USER_TYPE, ACCOUNT_TYPE_TECHNICIAN)
+        == ACCOUNT_TYPE_TECHNICIAN
+    )
 
     # Create sensors based on account type and PV configuration
     entities: list[
@@ -773,20 +880,16 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class EatonXStorageNotificationsSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageNotificationsSensor(EatonEntity, SensorEntity):
     """Sensor for displaying notifications array."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "notifications"
-    # Scope unique ID to config entry for multi-device support
-    _attr_unique_id = None
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the notifications sensor."""
         super().__init__(coordinator)
+        # Scope unique ID to config entry for multi-device support
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_notifications"
 
     @property
@@ -832,12 +935,9 @@ class EatonXStorageNotificationsSensor(
             return {}
 
 
-class EatonXStorageLatestNotificationSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageLatestNotificationSensor(EatonEntity, SensorEntity):
     """Sensor exposing the most recent notification's type as its state."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "latest_notification"
 
@@ -893,18 +993,10 @@ class EatonXStorageLatestNotificationSensor(
             _LOGGER.error("Error retrieving latest notification attributes: %s", err)
             return None
 
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
 
-
-class EatonXStorageInverterInfoSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageInverterInfoSensor(EatonEntity, SensorEntity):
     """Sensor grouping static inverter identity fields as attributes."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "inverter_info"
 
@@ -929,18 +1021,10 @@ class EatonXStorageInverterInfoSensor(
             attributes["nominal_vpv"] = device.get("inverterNominalVpv")
         return attributes
 
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
 
-
-class EatonXStorageBmsInfoSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageBmsInfoSensor(EatonEntity, SensorEntity):
     """Sensor grouping static BMS identity fields as attributes."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "bms_info"
 
@@ -964,18 +1048,10 @@ class EatonXStorageBmsInfoSensor(
             "capacity_kwh": device.get("bmsCapacity"),
         }
 
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
 
-
-class EatonXStorageDeviceInfoSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageDeviceInfoSensor(EatonEntity, SensorEntity):
     """Sensor grouping static device/network identity fields as attributes."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "device_info"
 
@@ -999,18 +1075,10 @@ class EatonXStorageDeviceInfoSensor(
             "timezone": (device.get("timezone") or {}).get("name"),
         }
 
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
 
-
-class EatonXStorageTechnicalInfoSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageTechnicalInfoSensor(EatonEntity, SensorEntity):
     """Sensor grouping static technician-only identity fields as attributes."""
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "technical_info"
 
@@ -1041,18 +1109,9 @@ class EatonXStorageTechnicalInfoSensor(
             ),
         }
 
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
 
-
-class EatonXStorageSensor(
-    CoordinatorEntity[EatonXstorageHomeCoordinator], SensorEntity
-):
+class EatonXStorageSensor(EatonEntity, SensorEntity):
     """Eaton xStorage Home sensor entity."""
-
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -1066,7 +1125,6 @@ class EatonXStorageSensor(
         self._key = key
         # Be robust to missing fields in description
         self._attr_translation_key = _translation_key_from_key(self._key)
-        self._name_for_logs = description.get("name", key)
         self._attr_native_unit_of_measurement = description.get("unit")
         self._attr_device_class = description.get("device_class")
         self._attr_entity_category = description.get("entity_category")
@@ -1076,9 +1134,7 @@ class EatonXStorageSensor(
         self._accuracy_warning = description.get("accuracy_warning", False)
         self._precision = description.get("precision")
         # Ensure per-entry unique IDs to avoid collisions across multiple devices
-        self._attr_unique_id = (
-            f"{coordinator.config_entry.entry_id}_{key.replace('.', '_')}"
-        )
+        self._attr_unique_id = sensor_unique_id(coordinator.config_entry.entry_id, key)
 
         # Apply icon from description if provided
         if description.get("icon"):
@@ -1093,198 +1149,58 @@ class EatonXStorageSensor(
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
-    def entity_registry_enabled_default(self) -> bool:
-        """Return if the entity should be enabled when first added."""
-        return self._attr_entity_registry_enabled_default
-
-    @property
     def native_value(self) -> str | int | float | None:
-        try:
-            # Log accuracy warning for sensors with known accuracy issues
-            if self._accuracy_warning:
-                _LOGGER.debug(
-                    "Sensor %s (%s) - %s",
-                    self._name_for_logs,
-                    self._key,
-                    POWER_ACCURACY_WARNING,
-                )
+        """Return the current value of the sensor."""
+        data = self.coordinator.data or {}
 
-            # Calculate BMS cell voltage delta first (before normal data extraction)
-            if self._key == "technical_status.bmsCellVoltageDelta":
-                try:
-                    tech_status = self.coordinator.data.get("technical_status", {})
-                    highest = tech_status.get("bmsHighestCellVoltage")
-                    lowest = tech_status.get("bmsLowestCellVoltage")
+        if self._key == CELL_VOLTAGE_DELTA_KEY:
+            return _cell_voltage_delta(data.get("technical_status", {}))
 
-                    # Filter out values below 1000mV before calculation
-                    if highest is not None and highest < 1000:
-                        _LOGGER.error(
-                            "BMS highest cell voltage below 1000mV threshold: %smV - delta calculation not possible",
-                            highest,
-                        )
-                        return None
-                    if lowest is not None and lowest < 1000:
-                        _LOGGER.error(
-                            "BMS lowest cell voltage below 1000mV threshold: %smV - delta calculation not possible",
-                            lowest,
-                        )
-                        return None
+        value = _value_at(data, self._key)
 
-                    if highest is not None and lowest is not None:
-                        delta = float(highest) - float(lowest)
-                        result = round(delta, 1)
-                        return result
-                    _LOGGER.debug(
-                        "Delta calculation failed - missing values. Highest: %s, Lowest: %s",
-                        highest,
-                        lowest,
-                    )
-                    return None
-                except (ValueError, TypeError) as e:
-                    _LOGGER.error("Error calculating BMS cell voltage delta: %s", e)
-                    return None
+        if self._key == BMS_FAULT_CODE_KEY:
+            return _format_fault_codes(value)
 
-            # Normal data extraction for other sensors
-            keys = self._key.split(".")
-            value = self.coordinator.data
-            for k in keys:
-                value = value.get(k, {}) if isinstance(value, dict) else {}
-            # If value is still a dict, return None
-            if isinstance(value, dict):
-                return None
-
-            # Fault codes arrive as a list, or null when the BMS reports no fault
-            if self._key == "technical_status.bmsFaultCode":
-                if isinstance(value, list):
-                    return (
-                        ", ".join(
-                            BMS_FAULT_CODE_MAP.get(code, str(code)) for code in value
-                        )[:255]
-                        or BMS_NO_FAULT
-                    )
-                return BMS_NO_FAULT if value is None else value
-
-            # Handle null/None values that should display as "None" instead of "Unknown"
-            if value is None:
-                return None
-
-            # Debug logging for technical status sensors to help troubleshoot formatting issues
-            if self._key.startswith("technical_status.") and value is not None:
-                _LOGGER.debug(
-                    "Technical Status Sensor '%s' - Raw value: '%s' (type: %s)",
-                    self._key,
-                    value,
-                    type(value).__name__,
-                )
-
-            # Filter out values below 1000mV for BMS cell voltage sensors
-            if (
-                self._key
-                in [
-                    "technical_status.bmsHighestCellVoltage",
-                    "technical_status.bmsLowestCellVoltage",
-                ]
-                and isinstance(value, (int, float))
-                and value < 1000
-            ):
-                _LOGGER.error(
-                    "BMS cell voltage %s below 1000mV threshold: %smV - treating as error",
-                    self._key,
-                    value,
-                )
-                return None
-
-            # Filter out invalid 0 values for certain technical sensors that sometimes incorrectly return 0
-            # Existing (BMS temps and charge/discharge) + additional: bmsAvgTemperature, bmsVoltage, gridFrequency
-            if (
-                self._key
-                in [
-                    "technical_status.bmsMaxTemperature",
-                    "technical_status.bmsMinTemperature",
-                    "technical_status.bmsAvgTemperature",
-                    "technical_status.bmsTotalCharge",
-                    "technical_status.bmsTotalDischarge",
-                    "technical_status.bmsVoltage",
-                    "technical_status.gridFrequency",
-                ]
-                and isinstance(value, (int, float))
-                and value == 0
-            ):
-                _LOGGER.debug(
-                    "Sensor %s returned invalid value 0 - ignoring",
-                    self._key,
-                )
-                return None
-
-            # Format Current Mode Command to human-readable format
-            if self._key == "status.currentMode.command" and isinstance(value, str):
-                return CURRENT_MODE_COMMAND_MAP.get(value, value)
-
-            # Format Current Mode Action to human-readable format
-            if self._key == "status.currentMode.parameters.action" and isinstance(
-                value, str
-            ):
-                return CURRENT_MODE_ACTION_MAP.get(value, value)
-
-            # Format Current Mode Type to human-readable format
-            if self._key == "status.currentMode.type" and isinstance(value, str):
-                return CURRENT_MODE_TYPE_MAP.get(value, value)
-
-            # Format Current Mode Recurrence to human-readable format
-            if self._key == "status.currentMode.recurrence" and isinstance(value, str):
-                return CURRENT_MODE_RECURRENCE_MAP.get(value, value)
-
-            # Format Operation Mode to human-readable format
-            if self._key == "status.energyFlow.operationMode" and isinstance(
-                value, str
-            ):
-                return OPERATION_MODE_MAP.get(value, value)
-
-            # Format Technical Operation Mode to human-readable format
-            if self._key == "technical_status.operationMode" and isinstance(value, str):
-                # Add debug logging to help troubleshoot
-                _LOGGER.debug(
-                    "Technical Operation Mode - Raw value: '%s', Mapped value: '%s'",
-                    value,
-                    OPERATION_MODE_MAP.get(value, value),
-                )
-                return OPERATION_MODE_MAP.get(value, value)
-
-            # Format BMS State to human-readable format
-            if self._key == "technical_status.bmsState" and isinstance(value, str):
-                return BMS_STATE_MAP.get(value, value)
-
-            # Format Battery Status to human-readable format (uses same mapping as BMS State)
-            if self._key == "status.energyFlow.batteryStatus" and isinstance(
-                value, str
-            ):
-                return BMS_STATE_MAP.get(value, value)
-
-            # Round temperature values to 1 decimal place
-            if self._attr_device_class == "temperature" and isinstance(
-                value, (int, float)
-            ):
-                return round(value, 1)
-
-            # The API reports times as HHMM, e.g. 1154 for 11:54
-            if (self._key.endswith("startTime") or self._key.endswith("endTime")) and (
-                isinstance(value, int) or (isinstance(value, str) and value.isdigit())
-            ):
-                time_val = int(value)
-                hour = time_val // 100
-                minute = time_val % 100
-                if 0 <= hour < 24 and 0 <= minute < 60:
-                    return f"{hour:02d}:{minute:02d}"
-            # Convert RAM usage from bytes to megabytes
-            if "ramUsage" in self._key and isinstance(value, (int, float)):
-                return round(value / 1024 / 1024, 2)
-            # Round CPU usage to 2 decimal places
-            if "cpuUsage.used" in self._key and isinstance(value, (int, float)):
-                return round(value, 2)
-            return value
-        except (KeyError, TypeError, AttributeError, ValueError) as e:
-            _LOGGER.error("Error retrieving state for %s: %s", self._key, e)
+        if value is None:
             return None
+
+        if (
+            self._key in CELL_VOLTAGE_KEYS
+            and isinstance(value, (int, float))
+            and value < MIN_CELL_VOLTAGE_MV
+        ):
+            _LOGGER.error(
+                "Cell voltage %s below %smV, treating as a read error: %smV",
+                self._key,
+                MIN_CELL_VOLTAGE_MV,
+                value,
+            )
+            return None
+
+        if (
+            self._key in ZERO_IS_INVALID_KEYS
+            and isinstance(value, (int, float))
+            and value == 0
+        ):
+            _LOGGER.debug("Sensor %s returned invalid value 0 - ignoring", self._key)
+            return None
+
+        if (labels := VALUE_MAPS.get(self._key)) is not None and isinstance(value, str):
+            return labels.get(value, value)
+
+        if self._attr_device_class == "temperature" and isinstance(value, (int, float)):
+            return round(value, 1)
+
+        if self._key.endswith(("startTime", "endTime")) and _is_device_time(value):
+            return _format_device_time(value) or value
+
+        if "ramUsage" in self._key and isinstance(value, (int, float)):
+            return round(value / 1024 / 1024, 2)
+
+        if "cpuUsage.used" in self._key and isinstance(value, (int, float)):
+            return round(value, 2)
+
+        return value
 
     @property
     def suggested_display_precision(self) -> int | None:
@@ -1293,10 +1209,6 @@ class EatonXStorageSensor(
         if self._precision is not None:
             return self._precision
 
-        # Cell voltage sensors (mV): 0 decimal places (already in millivolts).
-        # Checked before the generic voltage rule so they are not given 1 decimal.
-        if "CellVoltage" in self._key or "VoltageDelta" in self._key:
-            return 0
         # Temperature sensors: 1 decimal place
         if (
             self._attr_device_class == "temperature"
@@ -1344,8 +1256,3 @@ class EatonXStorageSensor(
                 "measurement_note": "Values typically 10%-30% higher than actual",
             }
         return None
-
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info

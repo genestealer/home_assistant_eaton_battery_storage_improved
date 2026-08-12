@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import Any
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .settings_helpers import async_get_and_transform_settings
+from .api import EatonError
+from .const import DOMAIN
+from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
+from .entity import EatonEntity
 
-if TYPE_CHECKING:
-    from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
-    from .coordinator import EatonBatteryStorageCoordinator
+PARALLEL_UPDATES = 1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,14 +29,19 @@ DEFAULT_MODE_OPTIONS: list[tuple[str, str]] = [
     ("Peak Shaving", "SET_PEAK_SHAVING"),
 ]
 
+# Fallback state of charge used by frequency regulation when the device does
+# not report a backup level.
+DEFAULT_OPTIMAL_SOC = 28
+DEFAULT_HOUSE_PEAK_CONSUMPTION = 1000
+
 
 async def async_setup_entry(
     _hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    entry: EatonConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up select entities."""
-    coordinator: EatonBatteryStorageCoordinator = config_entry.runtime_data
+    coordinator = entry.runtime_data
     async_add_entities(
         [
             EatonXStorageDefaultOperationModeSelect(coordinator),
@@ -46,308 +50,168 @@ async def async_setup_entry(
     )
 
 
-class EatonXStorageDefaultOperationModeSelect(CoordinatorEntity, SelectEntity):
+class EatonXStorageBaseSelect(EatonEntity, SelectEntity):
+    """Common behavior for the operation mode selects."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+        """Initialize the select entity."""
+        super().__init__(coordinator)
+        self._option_to_cmd: dict[str, str] = {}
+        self._cmd_to_label: dict[str, str] = {}
+
+
+class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
     """Select entity to configure Default Operation Mode in settings.defaultMode."""
 
-    _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:transmission-tower"
+    _attr_translation_key = "default_operation_mode"
 
-    def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator)
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_default_operation_mode"
         )
-        self._attr_translation_key = "default_operation_mode"
-        self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS]
-        self._option_to_cmd = {label: cmd for (label, cmd) in DEFAULT_MODE_OPTIONS}
-        self._cmd_to_label = {cmd: label for (label, cmd) in DEFAULT_MODE_OPTIONS}
-
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
-
-    @property
-    def options(self) -> list[str]:
-        """Return list of available options."""
-        return self._options
+        self._option_to_cmd = dict(DEFAULT_MODE_OPTIONS)
+        self._cmd_to_label = {cmd: label for label, cmd in DEFAULT_MODE_OPTIONS}
+        self._attr_options = list(self._option_to_cmd)
 
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        try:
-            settings = (
-                self.coordinator.data.get("settings", {})
-                if self.coordinator.data
-                else {}
-            )
-            default_mode = (
-                settings.get("defaultMode", {}) if isinstance(settings, dict) else {}
-            )
-            cmd = default_mode.get("command")
-            if cmd and cmd in self._cmd_to_label:
-                return self._cmd_to_label[cmd]
-        except Exception:
-            pass
-        return None
+        settings = (self.coordinator.data or {}).get("settings", {})
+        default_mode = settings.get("defaultMode", {})
+        return self._cmd_to_label.get(default_mode.get("command"))
 
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return (
-            self.coordinator.last_update_success and self.coordinator.data is not None
-        )
+    def _build_parameters(self, command: str, settings: dict) -> dict[str, int]:
+        """Build the parameters the device expects for the selected command."""
+        if command == "SET_PEAK_SHAVING":
+            threshold = settings.get("energySavingMode", {}).get(
+                "houseConsumptionThreshold"
+            )
+            if isinstance(threshold, (int, float)):
+                return {"maxHousePeakConsumption": int(threshold)}
+            return {}
+        if command == "SET_VARIABLE_GRID_INJECTION":
+            return {"maximumPower": 0}
+        if command == "SET_FREQUENCY_REGULATION":
+            optimal_soc = settings.get("bmsBackupLevel")
+            if not isinstance(optimal_soc, (int, float)):
+                energy_flow = (
+                    (self.coordinator.data or {})
+                    .get("status", {})
+                    .get("energyFlow", {})
+                )
+                optimal_soc = energy_flow.get("batteryBackupLevel", DEFAULT_OPTIMAL_SOC)
+            return {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
+        return {}
 
     async def async_select_option(self, option: str) -> None:
         """Select an option."""
-        if option not in self._option_to_cmd:
-            _LOGGER.error("Invalid operation mode option: %s", option)
-            return
+        command = self._option_to_cmd[option]
 
-        try:
-            # Always fetch the latest settings
-            current_settings = await async_get_and_transform_settings(
-                self.coordinator.api
-            )
-            if current_settings is None:
-                return
-
-            # Determine parameters based on selected mode and available helper/settings values
-            command = self._option_to_cmd[option]
-            parameters = {}
-
-            try:
-                if command == "SET_PEAK_SHAVING":
-                    # Use energySavingMode.houseConsumptionThreshold if available
-                    esm = (
-                        current_settings.get("energySavingMode", {})
-                        if isinstance(current_settings, dict)
-                        else {}
-                    )
-                    max_peak = None
-                    if isinstance(esm, dict):
-                        max_peak = esm.get("houseConsumptionThreshold")
-                    if isinstance(max_peak, (int, float)):
-                        parameters = {"maxHousePeakConsumption": int(max_peak)}
-                elif command == "SET_VARIABLE_GRID_INJECTION":
-                    # Default to 0W unless a helper is added later
-                    parameters = {"maximumPower": 0}
-                elif command == "SET_FREQUENCY_REGULATION":
-                    # Use current backup level as a reasonable default for optimal SOC
-                    optimal_soc = current_settings.get("bmsBackupLevel")
-                    if not isinstance(optimal_soc, (int, float)):
-                        # fallback from status if present
-                        status = (
-                            self.coordinator.data.get("status", {})
-                            if self.coordinator.data
-                            else {}
-                        )
-                        energy_flow = (
-                            status.get("energyFlow", {})
-                            if isinstance(status, dict)
-                            else {}
-                        )
-                        optimal_soc = energy_flow.get("batteryBackupLevel", 28)
-                    parameters = {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
-                else:
-                    parameters = {}
-            except Exception:
-                parameters = {}
-
-            # Set defaultMode with chosen command and computed parameters
-            current_settings["defaultMode"] = {
+        def mutate(settings: dict) -> None:
+            settings["defaultMode"] = {
                 "command": command,
-                "parameters": parameters,
+                "parameters": self._build_parameters(command, settings),
             }
 
-            payload = {"settings": current_settings}
-            result = await self.coordinator.api.update_settings(payload)
-            if result.get("successful", result.get("result") is not None):
-                _LOGGER.info("Default operation mode set to %s", option)
-                # Give device time to apply the change
-                await asyncio.sleep(2)
-            else:
-                _LOGGER.warning(
-                    "Default mode API call may not have succeeded: %s", result
-                )
-                await asyncio.sleep(1)
-            
-            # Refresh to get the latest state from device
+        try:
+            await self.coordinator.async_patch_settings(mutate)
+        except EatonError as err:
             await self.coordinator.async_request_refresh()
-            
-        except Exception as e:
-            _LOGGER.error("Error setting default operation mode: %s", e)
-            await self.coordinator.async_request_refresh()
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="set_default_operation_mode_failed",
+                translation_placeholders={"mode": option},
+            ) from err
 
 
-class EatonXStorageCurrentOperationModeSelect(CoordinatorEntity, SelectEntity):
+class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
     """Select entity to send immediate operation mode commands.
 
     Commands sent via /api/device/command.
     """
 
-    _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:battery-clock"
+    _attr_translation_key = "current_operation_mode"
 
-    def __init__(self, coordinator: EatonBatteryStorageCoordinator) -> None:
+    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator)
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_current_operation_mode"
         )
-        self._attr_translation_key = "current_operation_mode"
-        self._options = [label for (label, _) in DEFAULT_MODE_OPTIONS] + [
-            "Manual Charge",
-            "Manual Discharge",
-        ]
-        self._option_to_cmd = {label: cmd for (label, cmd) in DEFAULT_MODE_OPTIONS}
-        self._option_to_cmd.update(
-            {"Manual Charge": "SET_CHARGE", "Manual Discharge": "SET_DISCHARGE"}
-        )
-        self._cmd_to_label = {cmd: label for (label, cmd) in DEFAULT_MODE_OPTIONS}
-        self._cmd_to_label.update(
-            {"SET_CHARGE": "Manual Charge", "SET_DISCHARGE": "Manual Discharge"}
-        )
-
-    @property
-    def device_info(self):
-        """Return device information."""
-        return self.coordinator.device_info
-
-    @property
-    def options(self) -> list[str]:
-        """Return list of available options."""
-        return self._options
+        self._option_to_cmd = dict(DEFAULT_MODE_OPTIONS) | {
+            "Manual Charge": "SET_CHARGE",
+            "Manual Discharge": "SET_DISCHARGE",
+        }
+        self._cmd_to_label = {cmd: label for label, cmd in self._option_to_cmd.items()}
+        self._attr_options = list(self._option_to_cmd)
 
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        try:
-            status = (
-                self.coordinator.data.get("status", {}) if self.coordinator.data else {}
-            )
-            current_mode = (
-                status.get("currentMode", {}) if isinstance(status, dict) else {}
-            )
-            cmd = current_mode.get("command")
-            if cmd and cmd in self._cmd_to_label:
-                return self._cmd_to_label[cmd]
-        except Exception:
-            pass
-        return None
+        status = (self.coordinator.data or {}).get("status", {})
+        current_mode = status.get("currentMode", {})
+        return self._cmd_to_label.get(current_mode.get("command"))
 
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return (
-            self.coordinator.last_update_success and self.coordinator.data is not None
-        )
+    def _command_duration(self, command: str, helper_values: dict) -> int:
+        """Return the run duration in hours configured for this command."""
+        if command == "SET_CHARGE":
+            return int(helper_values.get("charge_duration", 1))
+        if command == "SET_DISCHARGE":
+            return int(helper_values.get("discharge_duration", 1))
+        # All intelligent modes use the shared run_duration
+        return int(helper_values.get("run_duration", 2))
+
+    def _command_parameters(self, command: str, helper_values: dict) -> dict[str, Any]:
+        """Build the parameters the device expects for the selected command."""
+        settings = (self.coordinator.data or {}).get("settings", {})
+
+        if command == "SET_CHARGE":
+            return {
+                "action": "ACTION_CHARGE",
+                "power": int(helper_values.get("charge_power", 15)),
+                "soc": int(helper_values.get("charge_end_soc", 90)),
+            }
+        if command == "SET_DISCHARGE":
+            return {
+                "action": "ACTION_DISCHARGE",
+                "power": int(helper_values.get("discharge_power", 15)),
+                "soc": int(helper_values.get("discharge_end_soc", 10)),
+            }
+        if command == "SET_PEAK_SHAVING":
+            threshold = settings.get("energySavingMode", {}).get(
+                "houseConsumptionThreshold", DEFAULT_HOUSE_PEAK_CONSUMPTION
+            )
+            return {"maxHousePeakConsumption": int(threshold)}
+        if command == "SET_VARIABLE_GRID_INJECTION":
+            return {"maximumPower": 0}
+        if command == "SET_FREQUENCY_REGULATION":
+            optimal_soc = settings.get("bmsBackupLevel", DEFAULT_OPTIMAL_SOC)
+            return {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
+        return {}
 
     async def async_select_option(self, option: str) -> None:
         """Select an option."""
-        if option not in self._option_to_cmd:
-            _LOGGER.error("Invalid current operation mode option: %s", option)
-            return
+        command = self._option_to_cmd[option]
+        helper_values = getattr(self.coordinator, "number_values", {})
+        duration = self._command_duration(command, helper_values)
 
         try:
-            command = self._option_to_cmd[option]
-
-            # Get helper values from coordinator storage
-            helper_values = getattr(self.coordinator, "number_values", {})
-
-            # Determine duration based on command type
-            duration = 1  # default fallback
-            if command in ["SET_CHARGE"]:
-                duration = helper_values.get("charge_duration", 1)
-                _LOGGER.debug("Using charge_duration: %s for %s", duration, command)
-            elif command in ["SET_DISCHARGE"]:
-                duration = helper_values.get("discharge_duration", 1)
-                _LOGGER.debug("Using discharge_duration: %s for %s", duration, command)
-            else:
-                # All intelligent modes use the shared run_duration
-                duration = helper_values.get("run_duration", 2)
-                _LOGGER.debug(
-                    "Using run_duration: %s for intelligent mode %s (available helpers: %s)",
-                    duration,
-                    command,
-                    list(helper_values.keys()),
-                )
-
-            # Build parameters based on command type
-            parameters = {}
-
-            if command == "SET_CHARGE":
-                parameters = {
-                    "action": "ACTION_CHARGE",
-                    "power": int(helper_values.get("charge_power", 15)),  # percentage
-                    "soc": int(helper_values.get("charge_end_soc", 90)),
-                }
-            elif command == "SET_DISCHARGE":
-                parameters = {
-                    "action": "ACTION_DISCHARGE",
-                    "power": int(
-                        helper_values.get("discharge_power", 15)
-                    ),  # percentage
-                    "soc": int(helper_values.get("discharge_end_soc", 10)),
-                }
-            elif command == "SET_PEAK_SHAVING":
-                # Get current settings for house consumption threshold
-                settings = (
-                    self.coordinator.data.get("settings", {})
-                    if self.coordinator.data
-                    else {}
-                )
-                esm = (
-                    settings.get("energySavingMode", {})
-                    if isinstance(settings, dict)
-                    else {}
-                )
-                max_peak = (
-                    esm.get("houseConsumptionThreshold", 1000)
-                    if isinstance(esm, dict)
-                    else 1000
-                )
-                parameters = {"maxHousePeakConsumption": int(max_peak)}
-            elif command == "SET_VARIABLE_GRID_INJECTION":
-                parameters = {
-                    "maximumPower": 0
-                }  # Could be extended with helper value later
-            elif command == "SET_FREQUENCY_REGULATION":
-                # Use backup level as optimal SOC
-                settings = (
-                    self.coordinator.data.get("settings", {})
-                    if self.coordinator.data
-                    else {}
-                )
-                optimal_soc = (
-                    settings.get("bmsBackupLevel", 28)
-                    if isinstance(settings, dict)
-                    else 28
-                )
-                parameters = {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
-
-            result = await self.coordinator.api.send_device_command(
-                command, int(duration), parameters
+            await self.coordinator.api.send_device_command(
+                command, duration, self._command_parameters(command, helper_values)
             )
-
-            if result.get("successful", result.get("result") is not None):
-                _LOGGER.info(
-                    "Current operation mode set to %s for %d hours", option, duration
-                )
-                # Give device time to apply the change
-                await asyncio.sleep(2)
-            else:
-                _LOGGER.warning(
-                    "Current mode API call may not have succeeded: %s", result
-                )
-                await asyncio.sleep(1)
-
-            # Refresh to get the latest state from device
+        except EatonError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="set_operation_mode_failed",
+                translation_placeholders={"mode": option},
+            ) from err
+        finally:
             await self.coordinator.async_request_refresh()
 
-        except Exception as e:
-            _LOGGER.error("Error setting current operation mode: %s", e)
-            await self.coordinator.async_request_refresh()
+        _LOGGER.debug("Current operation mode set to %s for %d hours", option, duration)
