@@ -934,7 +934,10 @@ async def async_setup_entry(
     entities.append(EatonXStorageNotificationsSensor(coordinator))
     entities.append(EatonXStorageLatestNotificationSensor(coordinator))
 
-    # Static identity fields grouped into a few sensors instead of one each
+    # Static identity fields grouped into a few sensors instead of one each. Home
+    # Assistant normally wants a separate entity per value rather than attributes,
+    # but these never change, so the recorder stores each attribute set once. The
+    # same fields remain available as individual sensors, disabled by default.
     entities.append(EatonXStorageInverterInfoSensor(coordinator, has_pv))
     entities.append(EatonXStorageBmsInfoSensor(coordinator))
     entities.append(EatonXStorageDeviceInfoSensor(coordinator))

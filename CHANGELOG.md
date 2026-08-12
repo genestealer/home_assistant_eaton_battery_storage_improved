@@ -158,6 +158,16 @@ remove the previously compiled statistics. Recording resumes on the next cycle.
   - `sensor.eaton_xstorage_home_technical_info` (state = grid code; attributes:
     `inverter_power_rating`, `bootloader_version`, `system_ram_total_mb`). Technician account
     only.
+
+  Home Assistant normally asks for a separate entity per value rather than attributes,
+  because when a sensor's state and its attributes both change often the recorder stores a
+  new copy of the attributes on every update. That does not apply here: these are device
+  identity fields — firmware versions, serial numbers, model names, ratings — that do not
+  change while the integration is running, so the recorder stores each attribute set once
+  and every later state row just points at it. Grouping them keeps four entities on the
+  device page instead of a dozen that would each never move. Every one of these fields is
+  still available as its own sensor if you prefer that; all except **System RAM Total** ship
+  disabled by default, so enable them from the device page.
 - `BMS_FAULT_CODE_MAP` and `NOTIFICATION_SUBTYPE_MAP` in `const.py`, sourced from the
   [xStorage Home API documentation](https://github.com/genestealer/eaton-xstorage-home-api-doc).
 
