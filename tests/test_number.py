@@ -58,6 +58,13 @@ def entity_id_for(hass: HomeAssistant, entry: MockConfigEntry, key: str) -> str:
             id="customer_falls_back_to_va_rating",
         ),
         pytest.param(
+            TECH_INPUT,
+            {**DEVICE_RESULT, "inverterVaRating": 3600},
+            {"inverterPowerRating": 0},
+            3600,
+            id="rating_reported_as_zero_falls_back_to_va_rating",
+        ),
+        pytest.param(
             USER_INPUT,
             DEVICE_RESULT,
             {},

@@ -110,11 +110,11 @@ async def test_energy_saving_mode_reports_a_rejected_write(
 
 
 @pytest.mark.usefixtures("mock_connected_device")
-async def test_power_switch_accepts_an_empty_response(
+async def test_power_switch_accepts_a_json_empty_string(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """The power endpoint answers with an empty body, which is not an error."""
-    aioclient_mock.post(f"{BASE_URL}/api/device/power")
+    """The device answers this endpoint with a bare JSON "", not a result object."""
+    aioclient_mock.post(f"{BASE_URL}/api/device/power", json="", headers=JSON_HEADERS)
     await setup_entry(hass)
 
     assert hass.states.get(POWER_ENTITY_ID).state == STATE_ON
