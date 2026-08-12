@@ -90,6 +90,12 @@
       "reconfigure_successful": "Configuration updated."
     }
   },
+  "services": {
+    "reload": {
+      "name": "Reload",
+      "description": "Reloads the Eaton xStorage Home integration."
+    }
+  },
   "exceptions": {
     "power_command_failed": {
       "message": "Failed to change the inverter power state."

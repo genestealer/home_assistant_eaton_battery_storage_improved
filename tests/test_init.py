@@ -10,6 +10,7 @@ from homeassistant.const import SERVICE_RELOAD
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.service import async_get_all_descriptions
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
@@ -244,3 +245,19 @@ async def test_the_reload_service_reloads_the_platforms(hass: HomeAssistant) -> 
         await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_every_registered_service_is_described(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A service missing from services.yaml makes Home Assistant log an error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+    )
+    await setup_entry(hass, entry)
+
+    await async_get_all_descriptions(hass)
+
+    assert set(hass.services.async_services_for_domain(DOMAIN)) == {SERVICE_RELOAD}
+    assert "services.yaml" not in caplog.text
