@@ -22,7 +22,9 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
 - Test scaffolding: `requirements_test.txt`, ruff/mypy/pytest configuration in
   `pyproject.toml`, a `tests/` suite and a CI job that runs ruff, mypy and pytest on every
   pull request. The device is mocked at the HTTP boundary, so the tests exercise the real
-  API client, coordinator and entity platforms rather than stand-ins for them.
+  API client, coordinator and entity platforms rather than stand-ins for them. Every module
+  has its own test file and the suite covers 97 % of the integration.
+  ([#31](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/31))
 - `entity.py` with a shared `EatonEntity` base class, replacing the twelve copies of
   `device_info` and `has_entity_name` spread across the platforms.
 - Syrupy snapshot coverage of every entity on all seven platforms, so an accidental change
@@ -68,6 +70,15 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
 
 ### Fixed
 
+- A running manual discharge is no longer reported as a manual charge. The device echoes
+  both directions back under the same command, so the direction is now read from the
+  `action` parameter that distinguishes them. This affects the **Current operation mode**
+  select and the **Current Mode Command** sensor; the discharge itself was always carried
+  out correctly. ([#33](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/33))
+- `sensor.eaton_xstorage_home_battery_state_of_charge` and the technical BMS state of charge
+  now declare `state_class: measurement`, so they are recorded in long-term statistics.
+  Sensor descriptions can now set `state_class` explicitly instead of only deriving it from
+  the device class. ([#34](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/34))
 - System health no longer crashes when the first config entry is disabled or retrying setup.
 - The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
 - Cell voltage sensors declare their display precision explicitly instead of relying on

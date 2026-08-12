@@ -16,32 +16,17 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.eaton_battery_storage.const import DOMAIN
 
-from .conftest import BASE_URL, JSON_HEADERS, SERIAL, USER_INPUT, mock_device
+from .conftest import (
+    BASE_URL,
+    JSON_HEADERS,
+    SERIAL,
+    USER_INPUT,
+    mock_device,
+    mock_settings,
+)
 
 ENERGY_SAVING_ENTITY_ID = "switch.eaton_xstorage_home_energy_saving_mode"
 POWER_ENTITY_ID = "switch.eaton_xstorage_home_inverter_power"
-
-SETTINGS_RESULT = {
-    "country": {"geonameId": 2635167, "name": "United Kingdom"},
-    "city": {"geonameId": 2643743, "name": "London"},
-    "timezone": {"id": "Europe/London", "offset": 0},
-    "bmsBackupLevel": 30,
-    "energySavingMode": {"enabled": False, "houseConsumptionThreshold": 400},
-}
-
-
-def mock_settings(aioclient_mock: AiohttpClientMocker, *, successful: bool) -> None:
-    """Answer the settings read and write used by the energy saving switch."""
-    aioclient_mock.get(
-        f"{BASE_URL}/api/settings",
-        json={"successful": True, "result": SETTINGS_RESULT},
-        headers=JSON_HEADERS,
-    )
-    aioclient_mock.put(
-        f"{BASE_URL}/api/settings",
-        json={"successful": successful},
-        headers=JSON_HEADERS,
-    )
 
 
 async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:

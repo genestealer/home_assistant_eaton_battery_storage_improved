@@ -12,13 +12,21 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.eaton_battery_storage.const import DOMAIN
 
-from .conftest import DEVICE_RESULT, SERIAL, TECH_INPUT, USER_INPUT, mock_device
+from .conftest import (
+    DEVICE_RESULT,
+    SERIAL,
+    TECH_INPUT,
+    USER_INPUT,
+    mock_device,
+    mock_settings,
+)
 
 CHARGE_POWER_KEY = "charge_power"
 CHARGE_POWER_WATT_KEY = "charge_power_watt"
@@ -31,6 +39,17 @@ async def setup_entry(hass: HomeAssistant, data: dict[str, Any]) -> MockConfigEn
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
+
+
+async def set_number(hass: HomeAssistant, entity_id: str, value: float) -> None:
+    """Set the value of a number entity."""
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: entity_id, ATTR_VALUE: value},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
 
 
 def entity_id_for(hass: HomeAssistant, entry: MockConfigEntry, key: str) -> str:
@@ -113,3 +132,97 @@ async def test_percentage_conversion_uses_inverter_rating(
     watt_state = hass.states.get(entity_id_for(hass, entry, CHARGE_POWER_WATT_KEY))
 
     assert watt_state.state == "3000"
+
+
+async def test_wattage_conversion_updates_the_percentage(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The two representations of the same setting stay in step."""
+    mock_device(aioclient_mock, technical_status={"inverterPowerRating": 6000})
+    entry = await setup_entry(hass, TECH_INPUT)
+
+    await set_number(hass, entity_id_for(hass, entry, CHARGE_POWER_WATT_KEY), 1500)
+
+    percent_state = hass.states.get(entity_id_for(hass, entry, CHARGE_POWER_KEY))
+    watt_state = hass.states.get(entity_id_for(hass, entry, CHARGE_POWER_WATT_KEY))
+
+    assert percent_state.state == "25"
+    assert percent_state.attributes["wattage"] == 1500
+    assert watt_state.attributes["percent"] == 25
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected_settings"),
+    [
+        pytest.param(
+            "set_house_consumption_threshold",
+            500,
+            {"energySavingMode": {"enabled": False, "houseConsumptionThreshold": 500}},
+            id="house_consumption_threshold",
+        ),
+        pytest.param(
+            "set_battery_backup_level",
+            45,
+            {"bmsBackupLevel": 45},
+            id="battery_backup_level",
+        ),
+    ],
+)
+async def test_a_setting_is_written_back_to_the_device(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    key: str,
+    value: int,
+    expected_settings: dict[str, Any],
+) -> None:
+    """Writing a number patches only its own field of the settings document."""
+    mock_settings(aioclient_mock, successful=True)
+    mock_device(aioclient_mock)
+    entry = await setup_entry(hass, TECH_INPUT)
+    entity_id = entity_id_for(hass, entry, key)
+
+    await set_number(hass, entity_id, value)
+
+    written = next(
+        data
+        for method, url, data, _ in reversed(aioclient_mock.mock_calls)
+        if method.upper() == "PUT" and url.path == "/api/settings"
+    )
+    assert written["settings"].items() >= expected_settings.items()
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected_error"),
+    [
+        pytest.param(
+            "set_house_consumption_threshold",
+            500,
+            "Failed to set the house consumption threshold to 500 W",
+            id="house_consumption_threshold",
+        ),
+        pytest.param(
+            "set_battery_backup_level",
+            45,
+            "Failed to set the battery backup level to 45 %",
+            id="battery_backup_level",
+        ),
+    ],
+)
+async def test_a_rejected_write_restores_the_device_value(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    key: str,
+    value: int,
+    expected_error: str,
+) -> None:
+    """A refused write must not leave the optimistic value on display."""
+    mock_settings(aioclient_mock, successful=False)
+    mock_device(aioclient_mock)
+    entry = await setup_entry(hass, TECH_INPUT)
+    entity_id = entity_id_for(hass, entry, key)
+    before = hass.states.get(entity_id).state
+
+    with pytest.raises(HomeAssistantError, match=expected_error):
+        await set_number(hass, entity_id, value)
+
+    assert hass.states.get(entity_id).state == before

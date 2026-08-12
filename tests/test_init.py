@@ -1,18 +1,30 @@
 """Tests for the Eaton xStorage Home integration setup and migration."""
 
 from typing import Any
+from unittest.mock import patch
 
 import aiohttp
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import SERVICE_RELOAD
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.eaton_battery_storage.const import DOMAIN
+from custom_components.eaton_battery_storage.api import token_store_key
+from custom_components.eaton_battery_storage.const import (
+    CONF_HAS_PV,
+    DOMAIN,
+    sensor_unique_id,
+)
 
 from .conftest import BASE_URL, HOST, JSON_HEADERS, SERIAL, USER_INPUT, mock_device
+
+# A sensor that only exists for systems with solar panels.
+PV_SENSOR_KEY = "status.energyFlow.acPvValue"
+PV_INPUT = {**USER_INPUT, CONF_HAS_PV: True}
 
 
 async def setup_entry(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -146,3 +158,89 @@ async def test_migrate_entry_drops_host_device_identifier(
     await hass.async_block_till_done()
 
     assert device_registry.async_get(device.id).identifiers == {(DOMAIN, SERIAL)}
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
+    """Turning the PV option off hides the sensors it created, and back on restores them."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=2
+    )
+    await setup_entry(hass, entry)
+    entity_registry = er.async_get(hass)
+    entity_id = entity_registry.async_get_entity_id(
+        "sensor", DOMAIN, sensor_unique_id(entry.entry_id, PV_SENSOR_KEY)
+    )
+    assert entity_registry.async_get(entity_id).disabled_by is None
+
+    hass.config_entries.async_update_entry(entry, data=USER_INPUT)
+    await hass.async_block_till_done()
+
+    assert (
+        entity_registry.async_get(entity_id).disabled_by
+        is er.RegistryEntryDisabler.INTEGRATION
+    )
+
+    hass.config_entries.async_update_entry(entry, data=PV_INPUT)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(entity_id).disabled_by is None
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_a_user_disabled_pv_sensor_is_left_alone(hass: HomeAssistant) -> None:
+    """A deliberate user choice must survive the PV migration."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=2
+    )
+    await setup_entry(hass, entry)
+    entity_registry = er.async_get(hass)
+    entity_id = entity_registry.async_get_entity_id(
+        "sensor", DOMAIN, sensor_unique_id(entry.entry_id, PV_SENSOR_KEY)
+    )
+    entity_registry.async_update_entity(
+        entity_id, disabled_by=er.RegistryEntryDisabler.USER
+    )
+
+    hass.config_entries.async_update_entry(entry, data=USER_INPUT)
+    await hass.async_block_till_done()
+
+    assert (
+        entity_registry.async_get(entity_id).disabled_by
+        is er.RegistryEntryDisabler.USER
+    )
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_removing_the_entry_deletes_the_stored_token(
+    hass: HomeAssistant, hass_storage: dict[str, Any]
+) -> None:
+    """The device credentials must not outlive the config entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+    )
+    await setup_entry(hass, entry)
+    store_key = token_store_key(entry.entry_id)
+    assert store_key in hass_storage
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert store_key not in hass_storage
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_the_reload_service_reloads_the_platforms(hass: HomeAssistant) -> None:
+    """The reload service keeps the entry loaded."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+    )
+    await setup_entry(hass, entry)
+
+    with patch(
+        "homeassistant.config.async_hass_config_yaml", return_value={DOMAIN: {}}
+    ):
+        await hass.services.async_call(DOMAIN, SERVICE_RELOAD, {}, blocking=True)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED

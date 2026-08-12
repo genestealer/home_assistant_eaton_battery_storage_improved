@@ -53,6 +53,15 @@ STATUS_RESULT = {
     "currentMode": {"command": "SET_BASIC_MODE"},
 }
 
+# The device nests country, city and timezone, which a write has to flatten.
+SETTINGS_RESULT = {
+    "country": {"geonameId": 2635167, "name": "United Kingdom"},
+    "city": {"geonameId": 2643743, "name": "London"},
+    "timezone": {"id": "Europe/London", "offset": 0},
+    "bmsBackupLevel": 30,
+    "energySavingMode": {"enabled": False, "houseConsumptionThreshold": 400},
+}
+
 # Coordinator data key to the endpoint it is read from.
 ENDPOINT_PATHS = {
     "device": "/api/device",
@@ -93,6 +102,20 @@ def mock_signin(aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.post(
         f"{BASE_URL}/api/auth/signin",
         json={"successful": True, "result": {"token": "test-token"}},
+        headers=JSON_HEADERS,
+    )
+
+
+def mock_settings(aioclient_mock: AiohttpClientMocker, *, successful: bool) -> None:
+    """Answer the settings read and write of a read-modify-write cycle."""
+    aioclient_mock.get(
+        f"{BASE_URL}/api/settings",
+        json={"successful": True, "result": SETTINGS_RESULT},
+        headers=JSON_HEADERS,
+    )
+    aioclient_mock.put(
+        f"{BASE_URL}/api/settings",
+        json={"successful": successful},
         headers=JSON_HEADERS,
     )
 
