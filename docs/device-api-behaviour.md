@@ -49,6 +49,61 @@ is greater than zero, then falls back to `inverterVaRating`, then to
 `DEFAULT_INVERTER_POWER_RATING`. Removing the greater-than-zero guard would
 collapse the watt entities to a 0 W scale on this hardware.
 
+## The status totals are energy in watt hours
+
+`status.today` and `status.last30daysEnergyFlow` carry no unit in the API
+documentation, and the sample response there has every field at zero. A live
+reading at 20:55 local resolves it:
+
+| Field | Value |
+| --- | --- |
+| `energyFlow.gridValue` | `1337` |
+| `today.gridConsumption` | `13748.699` |
+| `last30daysEnergyFlow.gridConsumption` | `411518.78` |
+
+`today.gridConsumption` cannot be power: 13.7 kW is beyond the 3600 VA inverter,
+and the instantaneous grid reading at the same moment was 1337 W. As energy it is
+13.7 kWh of grid import in a day, which is an ordinary house. The 30-day figure is
+29.9 times the daily one, or 411.5 kWh over 30 days for the same 13.7 kWh a day.
+So both blocks are watt hours, `today` resetting daily and the 30-day block
+rolling.
+
+Note that `/api/metrics` is *not* in the same unit, despite the API documentation
+saying its values are Wh. Over the same day its 250 samples averaged 574.75 with a
+maximum of 3688.8; summing them gives 143.7 kWh against an actual 13.7 kWh day.
+Those samples are watts.
+
+## The BMS totals are ampere hours, not kWh
+
+`bmsTotalCharge` reads `17005` and `bmsTotalDischarge` `15847` on a 4.2 kWh pack
+whose records start 2025-07-12. Read as kWh that is 4048 full cycles in about 396
+days, or ten cycles a day, which the hardware cannot do. Read as Wh it is four
+cycles in thirteen months, which is too few for a battery that cycles daily.
+
+At the observed `bmsVoltage` of 98.5 V the pack is roughly 42.6 Ah, so 17005 Ah is
+399 cycles, or 1.008 a day. That is what a home battery does, and a coulomb counter
+in Ah is the BMS convention. The charge to discharge ratio of 93 % is a plausible
+coulombic efficiency.
+
+Home Assistant has no device class or unit constant for charge, so these sensors
+declare the unit `Ah` with no device class.
+
+## Values missing from the documented enumerations
+
+Seen live but absent from the API documentation, so they reach Home Assistant
+unmapped and render as the raw string:
+
+| Field | Value seen | Documented values |
+| --- | --- | --- |
+| `energyFlow.gridRole` | `PRODUCER` | `NONE`, `SUPPLYING`, `CONSUMING` |
+| `energyFlow.nonCriticalLoadRole` | `CONSUMER` | as above |
+| `energyFlow.operationMode` | `BASIC` | `CHARGING`, `DISCHARGING`, `IDLE` |
+| `currentMode.recurrence` | `DEFAULT_EVENT` | `DAILY`, `WEEKLY`, `MANUAL_EVENT` |
+| `currentMode.type` | `DEFAULT` | `MANUAL`, `SCHEDULE` |
+
+`currentMode` also returns `null` for `duration`, `startTime`, `endTime` and
+`parameters` while the device is running its default mode.
+
 ## Sign-in errors
 
 Still unverified. `_classify_auth_error` maps the documented `errCode` `10`
@@ -69,3 +124,6 @@ credentials from a local Home Assistant config entry so no password is typed or
 stored, and it redacts the access token from its output. The command probe
 replays whatever mode the device is already running rather than forcing a new
 one, but it still replaces the running session, so avoid it mid-charge.
+
+`temp/probe_units.py` collects the readings behind the two unit sections above.
+It only issues GETs, so it is safe to run at any time.
