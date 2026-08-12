@@ -271,6 +271,13 @@ This integration supports two account types:
   - System CPU/RAM monitoring
   - Requires inverter serial number
 
+### Verify SSL certificate
+
+The inverter serves its web API over HTTPS with a self-signed certificate, so **Verify SSL
+certificate** is off by default and Home Assistant accepts whatever certificate the device
+presents. Anything on the same network segment could therefore intercept the credentials.
+Enable the option if you have installed a certificate that Home Assistant trusts.
+
 ### Reconfiguration
 
 You can change settings after installation:

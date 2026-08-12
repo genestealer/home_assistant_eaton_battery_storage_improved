@@ -4,6 +4,81 @@ All notable changes to this integration are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08-01.md).
+
+### Added
+
+- **Verify SSL certificate** option in the config, reauth and options flows. It defaults to
+  off, matching the previous hardcoded behaviour, because the inverter ships a self-signed
+  certificate. Turning it on makes Home Assistant validate the certificate for every request,
+  including the credential exchange.
+- Host validation in the config flow: values containing a scheme, path or whitespace are now
+  rejected instead of being used to build a storage filename.
+- Reauthentication is now actually reachable — the coordinator raises `ConfigEntryAuthFailed`
+  when the device rejects the credentials, so Home Assistant prompts for new ones instead of
+  leaving every entity unavailable.
+- Test scaffolding: `requirements_test.txt`, ruff/mypy/pytest configuration in
+  `pyproject.toml`, a `tests/` suite and a CI job that runs ruff, mypy and pytest on every
+  pull request. The device is mocked at the HTTP boundary, so the tests exercise the real
+  API client, coordinator and entity platforms rather than stand-ins for them.
+- `entity.py` with a shared `EatonEntity` base class, replacing the twelve copies of
+  `device_info` and `has_entity_name` spread across the platforms.
+- Syrupy snapshot coverage of every entity on all seven platforms, so an accidental change
+  to a unit, device class, entity category or state shows up as a snapshot diff.
+
+### Changed
+
+- **Device identity is now keyed on the inverter serial number.** The host-based identifier
+  is removed from existing devices on upgrade, and the config entry unique ID is migrated
+  from `{host}_{serial}` to the bare serial. A device that changes IP address now updates its
+  host instead of appearing as a duplicate.
+- Settings writes (energy saving mode, backup level, house consumption threshold, default
+  operation mode) go through a single lock-protected read-modify-write helper, so two
+  automations firing at the same time can no longer overwrite each other's changes.
+- The coordinator fetches the optional endpoints concurrently instead of serially, and logs
+  loss of connectivity once rather than on every failed refresh.
+- Command entities no longer sleep 1–3 seconds inside the service call; they schedule a
+  debounced refresh instead.
+- The API layer signals failures with a dedicated exception hierarchy
+  (`EatonAuthError`, `EatonConnectionError`, `EatonResponseError`, `EatonCommandError`)
+  instead of a mix of `ValueError`, `ConnectionError` and error dictionaries. The config flow
+  classifies authentication failures on the device error code rather than on English text.
+- Select entities now raise a translated error when a command fails, instead of logging and
+  reporting success.
+- The sensor value handling no longer wraps ~180 lines in a single `try`/`except`. The
+  lookups, fault-code rendering, cell-voltage delta and HHMM time formatting are separate
+  helpers with targeted guards, so a genuine bug surfaces instead of being swallowed as
+  "Error retrieving state". Two debug logs that fired on every state read were removed;
+  the same data is available in the diagnostics download.
+- The access token is stored under `{domain}.{entry_id}_token`, is read back on restart
+  instead of being written and never used, and is deleted when the entry is removed.
+- The `reload` service is registered once in `async_setup` instead of per config entry, and
+  now requires an administrator, matching Home Assistant's own reload helper. Automations
+  run as a non-admin user can no longer call it.
+- `PARALLEL_UPDATES` is declared on every platform: `0` for the read-only ones, `1` for the
+  command platforms.
+- Password fields are no longer prefilled in the reauth and options forms.
+- Saving the options form writes the entry once and reloads once, instead of twice.
+- `quality_scale.yaml` now lists every rule through Platinum with an accurate status. The
+  `"quality_scale": "bronze"` claim was removed from `manifest.json` until the remaining
+  Bronze rules (brands, removal instructions) are met, since it was self-asserted and
+  unverifiable for a custom component.
+
+### Fixed
+
+- System health no longer crashes when the first config entry is disabled or retrying setup.
+- The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
+- Cell voltage sensors declare their display precision explicitly instead of relying on
+  substring matching against the sensor key.
+- The notification event entity no longer grows its "seen alerts" set without bound.
+- The percentage/watt conversion for charge and discharge power now uses the inverter's
+  reported power rating (`technical_status.inverterPowerRating`, falling back to
+  `device.inverterVaRating` for customer accounts and to 3600 W if neither is available)
+  instead of hardcoding 3600 W in six places. The watt sliders now span 5–100 % of that
+  rating, so 4.6 kW and 6 kW models are no longer capped at 3600 W.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
