@@ -16,11 +16,7 @@ rules:
     comment: >-
       The device is spoken to directly over HTTP and the integration declares no
       requirements, so there is no third-party library to vouch for.
-  docs-actions:
-    status: exempt
-    comment: >-
-      The integration only registers the standard reload action, which needs no
-      dedicated documentation.
+  docs-actions: done
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions:
@@ -58,7 +54,12 @@ rules:
   docs-data-update:
     status: todo
     comment: The polling behaviour is not documented yet.
-  docs-examples: done
+  docs-examples:
+    status: todo
+    comment: >-
+      The rule wants blueprints on the blueprint exchange, not YAML in the
+      repository. The outdated examples folder has been removed; blueprints have
+      not been written.
   docs-known-limitations: done
   docs-supported-devices:
     status: todo

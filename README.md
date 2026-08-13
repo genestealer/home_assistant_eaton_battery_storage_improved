@@ -247,15 +247,18 @@ start: 0
 size: 2
 ```
 
-## Examples
+## Actions
 
-Example Home Assistant automations are provided in the `examples/` folder:
+The integration provides the following action.
 
-- `examples/example_home_assistant_automation_meter_emulator.yaml` — publish real-time meter data to the inverter (MQTT) with safety limits and accuracy warning
-- `examples/example_home_assistant_automation_octopus_go_intelligent_dispatching.yaml` — smart daytime charging driven by Octopus Intelligent Go dispatch windows
-- `examples/example_home_assistant_automation_notifications_event.yaml` — react to new inverter alerts via EventEntity and mark notifications read
+### Action: Reload
 
-These examples use registry `device_id` and `entity_id` values for stability across renames; update them to match your setup and see inline comments for guidance.
+`eaton_battery_storage.reload` reloads every configured inverter: the connection is rebuilt,
+the stored access token is re-read and all entities are recreated. Use it after power-cycling
+the inverter or updating its firmware, rather than restarting Home Assistant.
+
+- **Data attributes**: none.
+- **Permissions**: administrators only.
 
 ## Configuration
 

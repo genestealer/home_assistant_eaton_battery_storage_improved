@@ -49,6 +49,8 @@ and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
   is removed from existing devices on upgrade, and the config entry unique ID is migrated
   from `{host}_{serial}` to the bare serial. A device that changes IP address now updates its
   host instead of appearing as a duplicate.
+- The README documents the `reload` action: what it does, that it takes no data and that it
+  needs an administrator.
 - Settings writes (energy saving mode, backup level, house consumption threshold, default
   operation mode) go through a single lock-protected read-modify-write helper, so two
   automations firing at the same time can no longer overwrite each other's changes.
@@ -80,6 +82,14 @@ and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
   `"quality_scale": "bronze"` claim was removed from `manifest.json` until the remaining
   Bronze rules (brands, removal instructions) are met, since it was self-asserted and
   unverifiable for a custom component.
+
+### Removed
+
+- The `examples/` folder and the README section linking to it. The automations in it had gone
+  stale, and the quality scale asks for blueprints on the
+  [blueprint exchange](https://community.home-assistant.io/c/blueprints-exchange) rather than
+  YAML kept in the repository. Nothing that is already running is affected; only the copies
+  in this repository are gone.
 
 ### Fixed
 
@@ -157,6 +167,9 @@ readings recorded in [the device API behaviour notes](docs/device-api-behaviour.
   running its default mode, and **Current Mode Recurrence** and **Current Mode Type** gained
   the `DEFAULT_EVENT` and `DEFAULT` they report at the same time. Automations matching on
   the raw strings for these seven sensors need updating.
+- Loss of connectivity is logged at `info` rather than `warning`, which is the level the
+  quality scale asks for. It is still logged once when the device goes away and once when it
+  comes back, not on every failed refresh.
 - `services.yaml` was missing, so Home Assistant logged "Failed to load services.yaml for
   integration: eaton_battery_storage" every time something asked for the service list. The
   `reload` service the integration registers is now described there and in the translations.

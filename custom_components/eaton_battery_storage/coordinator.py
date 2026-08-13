@@ -252,7 +252,7 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
         except EatonError as err:
             if not self._unavailable_logged:
                 self._unavailable_logged = True
-                _LOGGER.warning("Eaton xStorage Home is unavailable: %s", err)
+                _LOGGER.info("Eaton xStorage Home is unavailable: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
         if self._unavailable_logged:
