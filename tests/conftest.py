@@ -13,12 +13,18 @@ from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotEx
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.eaton_battery_storage.config_flow import (
+    EatonXStorageConfigFlow,
+)
+
 HOST = "192.168.1.10"
 BASE_URL = f"https://{HOST}"
 SERIAL = "SN-12345"
 JSON_HEADERS = {"Content-Type": "application/json"}
 # Entity unique IDs embed the entry ID, so it is pinned for stable snapshots.
 ENTRY_ID = "01JEAT0NXST0RAGEH0MEZZZZZZ"
+# Taken from the flow so an entry a test builds is one the flow could create.
+MINOR_VERSION = EatonXStorageConfigFlow.MINOR_VERSION
 
 USER_INPUT = {
     "host": HOST,

@@ -17,6 +17,7 @@ from .conftest import (
     ENTRY_DATA,
     HOST,
     JSON_HEADERS,
+    MINOR_VERSION,
     SERIAL,
     TECH_INPUT,
     USER_INPUT,
@@ -52,6 +53,8 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["title"] == "Eaton xStorage Home"
     assert result["data"] == {**USER_INPUT, "email": "anything@anything.com"}
     assert result["result"].unique_id == SERIAL
+    # Anything older than this has to be handled by async_migrate_entry.
+    assert result["result"].minor_version == MINOR_VERSION
 
 
 async def test_user_flow_falls_back_to_configured_serial(

@@ -21,6 +21,7 @@ from custom_components.eaton_battery_storage.const import DOMAIN
 
 from .conftest import (
     DEVICE_RESULT,
+    MINOR_VERSION,
     SERIAL,
     TECH_INPUT,
     USER_INPUT,
@@ -34,7 +35,9 @@ CHARGE_POWER_WATT_KEY = "charge_power_watt"
 
 async def setup_entry(hass: HomeAssistant, data: dict[str, Any]) -> MockConfigEntry:
     """Set up a config entry and return it."""
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=data, minor_version=3)
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=data, minor_version=MINOR_VERSION
+    )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
