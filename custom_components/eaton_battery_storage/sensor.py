@@ -78,7 +78,12 @@ CELL_VOLTAGE_KEYS = frozenset(
     }
 )
 
-# These sensors report 0 when the device has no reading rather than a real zero.
+# Readings the device zeroes when it cannot take them. A connected pack is never
+# at 0 V, and the API documentation shows bmsAvgTemperature reading 0 alongside a
+# max of 35.5 and a min of 32.8, so 0 there is an absent reading rather than a
+# freezing battery. The lifetime counters stay here because they only ever climb:
+# a return to 0 is a read error, and letting it through would land a reset in the
+# TOTAL statistic and a spurious lifetime's worth of charge in its sum.
 ZERO_IS_INVALID_KEYS = frozenset(
     {
         "technical_status.bmsMaxTemperature",
@@ -87,7 +92,6 @@ ZERO_IS_INVALID_KEYS = frozenset(
         "technical_status.bmsTotalCharge",
         "technical_status.bmsTotalDischarge",
         "technical_status.bmsVoltage",
-        "technical_status.gridFrequency",
     }
 )
 

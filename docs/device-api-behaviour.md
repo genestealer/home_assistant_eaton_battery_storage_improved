@@ -117,6 +117,32 @@ update, which makes this low priority. The remaining risk is a device set to a
 non-English language returning a localised `description`, which would fall
 through to the generic `invalid_auth` message.
 
+## Which zero readings are real
+
+`technical/status` zeroes some fields when it cannot take the reading, so the
+integration drops those. Deciding which ones needed evidence rather than
+guesswork, because suppressing a genuine zero hides information just as badly as
+showing a false one.
+
+Read from the test unit while it was healthy: `bmsAvgTemperature` 23.2,
+`bmsMaxTemperature` 46.1, `bmsMinTemperature` 43.7, `bmsVoltage` 90.4,
+`bmsTotalCharge` 17142, `bmsTotalDischarge` 15999, `gridFrequency` 49.97.
+
+- Temperatures are dropped at zero. The API documentation's own sample shows
+  `bmsAvgTemperature: 0` next to a max of 35.5 and a min of 32.8, which is not a
+  battery at freezing point, it is an absent reading.
+- `bmsVoltage` is dropped at zero. The pack reads around 90 to 99 V whenever the
+  BMS answers at all, so nothing connected can report 0 V.
+- `bmsTotalCharge` and `bmsTotalDischarge` are dropped at zero even though a new
+  pack legitimately starts there. They only ever climb, so a return to zero is a
+  read error, and letting it through would put a reset into the `TOTAL`
+  statistic and add a spurious lifetime of charge to its sum. The cost is that a
+  brand new battery reads unknown until the first amp hour flows.
+- `gridFrequency` is **not** dropped. 0 Hz is what an outage looks like, which is
+  the moment the reading matters most, and it agrees with the `NO_UTILITY`
+  notification. Hiding it was the one case where the suppression removed the
+  signal it was supposed to protect.
+
 ## Reproducing
 
 `temp/probe_device.py` in this repository performs these probes. It reads the

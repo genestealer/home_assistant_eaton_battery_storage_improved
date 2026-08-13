@@ -314,8 +314,8 @@ async def test_enum_values_seen_on_real_hardware_are_labelled(
         pytest.param(
             {"gridFrequency": 0},
             "technical_status.gridFrequency",
-            STATE_UNKNOWN,
-            id="zero_grid_frequency_is_dropped",
+            "0",
+            id="zero_grid_frequency_is_a_grid_outage",
         ),
         pytest.param(
             {},
