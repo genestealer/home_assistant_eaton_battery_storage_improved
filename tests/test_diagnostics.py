@@ -19,7 +19,7 @@ from .conftest import ENTRY_DATA, SERIAL, USER_INPUT
 async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
     """Set up a config entry and return it."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA, minor_version=3
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -60,7 +60,7 @@ async def test_system_health_reports_a_loaded_entry(hass: HomeAssistant) -> None
 async def test_system_health_without_a_loaded_entry(hass: HomeAssistant) -> None:
     """System health does not crash when no entry is loaded."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA, minor_version=3
     )
     entry.add_to_hass(hass)
 

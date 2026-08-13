@@ -81,7 +81,7 @@ async def test_all_entities(
         entry_id=ENTRY_ID,
         unique_id=SERIAL,
         data=TECH_INPUT,
-        minor_version=2,
+        minor_version=3,
     )
     entry.add_to_hass(hass)
 
@@ -110,7 +110,7 @@ async def test_all_entities_on_a_pv_install(
         entry_id=ENTRY_ID,
         unique_id=SERIAL,
         data={**TECH_INPUT, CONF_HAS_PV: True},
-        minor_version=2,
+        minor_version=3,
     )
     entry.add_to_hass(hass)
 

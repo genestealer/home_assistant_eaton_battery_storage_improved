@@ -34,7 +34,7 @@ async def setup_entry(
     """Set up a config entry against a device serving the given payloads."""
     mock_device(aioclient_mock, **payloads)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=3
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

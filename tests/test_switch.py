@@ -32,7 +32,7 @@ POWER_ENTITY_ID = "switch.eaton_xstorage_home_inverter_power"
 async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
     """Set up a config entry and return it."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
