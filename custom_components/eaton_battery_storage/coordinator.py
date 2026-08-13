@@ -27,12 +27,43 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .api import EatonAuthError, EatonBatteryAPI, EatonError, EatonResponseError
-from .const import ACCOUNT_TYPE_TECHNICIAN, CONF_USER_TYPE, DOMAIN
+from .const import (
+    ACCOUNT_TYPE_TECHNICIAN,
+    CONF_USER_TYPE,
+    DEFAULT_INVERTER_POWER_RATING,
+    DOMAIN,
+)
+from .number_constants import (
+    CHARGE_POWER,
+    CHARGE_POWER_WATT,
+    DISCHARGE_POWER,
+    DISCHARGE_POWER_WATT,
+    NUMBER_ENTITIES,
+)
 from .settings_helpers import async_get_and_transform_settings
 
 _LOGGER = logging.getLogger(__name__)
 
 type EatonConfigEntry = ConfigEntry[EatonXstorageHomeCoordinator]
+
+# Percentage entity to the watt entity holding the same setting.
+LINKED_NUMBER_KEYS = (
+    (CHARGE_POWER, CHARGE_POWER_WATT),
+    (DISCHARGE_POWER, DISCHARGE_POWER_WATT),
+)
+
+# Before the helper values were scoped per entry they all shared this one store.
+LEGACY_NUMBER_STORE_KEY = f"{DOMAIN}_number_values.json"
+
+
+def number_store_key(entry_id: str) -> str:
+    """Return the .storage key holding the local helper values for an entry."""
+    return f"{DOMAIN}_{entry_id}_number_values"
+
+
+def number_update_signal(entry_id: str) -> str:
+    """Return the dispatcher signal linking an entry's paired number entities."""
+    return f"{DOMAIN}_{entry_id}_number_update"
 
 
 def _unwrap(response: dict[str, Any]) -> dict[str, Any]:
@@ -53,7 +84,8 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
     """Class to manage fetching data from the Eaton xStorage Home API."""
 
     config_entry: EatonConfigEntry
-    # Populated by the number platform, which owns the local helper values.
+    # Loaded by async_load_number_values before the platforms are forwarded; the
+    # number platform writes them and the select platform reads them.
     number_values: dict[str, float]
     number_store: Store[dict[str, float]]
 
@@ -74,6 +106,61 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
         self.api = api
         self._settings_lock = asyncio.Lock()
         self._unavailable_logged = False
+
+    @property
+    def full_scale_power(self) -> int:
+        """Return the inverter power rating used to convert percentages to watts.
+
+        The range spans 3.6 kW to 6 kW, so the rating has to come from the
+        device. inverterPowerRating needs a technician account and reads 0 on at
+        least the 3.6 kW model, hence the greater-than-zero guard;
+        inverterVaRating is the closest equivalent a customer account can read.
+        """
+        data = self.data or {}
+        for rating in (
+            data.get("technical_status", {}).get("inverterPowerRating"),
+            data.get("device", {}).get("inverterVaRating"),
+        ):
+            if isinstance(rating, (int, float)) and rating > 0:
+                return int(rating)
+        return DEFAULT_INVERTER_POWER_RATING
+
+    async def async_load_number_values(self) -> None:
+        """Load the local helper values the number and select platforms share.
+
+        Called before the platforms are forwarded, because they are set up
+        concurrently and select reads these values to build its commands.
+        """
+        store: Store[dict[str, float]] = Store(
+            self.hass, 1, number_store_key(self.config_entry.entry_id)
+        )
+        values: dict[str, float] = await store.async_load() or {}
+        stored_count = len(values)
+
+        if not values:
+            # Adopt the shared store an earlier version wrote, so upgrading does
+            # not reset the user's charge and discharge settings. It is left in
+            # place because a second entry may not have migrated yet.
+            legacy: Store[dict[str, float]] = Store(
+                self.hass, 1, LEGACY_NUMBER_STORE_KEY
+            )
+            values = await legacy.async_load() or {}
+
+        for description in NUMBER_ENTITIES:
+            default = description.get("default")
+            if default is not None and description["key"] not in values:
+                values[description["key"]] = default
+
+        for percent_key, watt_key in LINKED_NUMBER_KEYS:
+            if watt_key not in values and percent_key in values:
+                values[watt_key] = round(
+                    values[percent_key] / 100 * self.full_scale_power
+                )
+
+        self.number_values = values
+        self.number_store = store
+        if len(values) != stored_count:
+            await store.async_save(values)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -144,7 +231,11 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
             *(fetch() for fetch in optional.values()), return_exceptions=True
         )
         for name, response in zip(optional, responses, strict=True):
+            if isinstance(response, EatonAuthError):
+                raise response
             if isinstance(response, BaseException):
+                if not isinstance(response, Exception):
+                    raise response
                 _LOGGER.debug("Failed to fetch %s: %s", name, response)
                 results[name] = {}
             else:

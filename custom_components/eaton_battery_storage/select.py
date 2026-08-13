@@ -198,7 +198,7 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
     async def async_select_option(self, option: str) -> None:
         """Select an option."""
         command = self._option_to_cmd[option]
-        helper_values = getattr(self.coordinator, "number_values", {})
+        helper_values = self.coordinator.number_values
         duration = self._command_duration(command, helper_values)
 
         try:

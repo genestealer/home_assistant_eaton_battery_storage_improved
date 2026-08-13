@@ -13,7 +13,7 @@ import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.components.number.const import NumberDeviceClass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
@@ -21,14 +21,19 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.storage import Store
 
 from .api import EatonError
-from .const import DEFAULT_INVERTER_POWER_RATING, DOMAIN
-from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
+from .const import DOMAIN
+from .coordinator import (
+    EatonConfigEntry,
+    EatonXstorageHomeCoordinator,
+    number_update_signal,
+)
 from .entity import EatonEntity
 from .number_constants import (
+    CHARGE_POWER,
     CHARGE_POWER_WATT,
+    DISCHARGE_POWER,
     DISCHARGE_POWER_WATT,
     NUMBER_ENTITIES,
     NumberEntityDefinition,
@@ -40,73 +45,26 @@ _LOGGER = logging.getLogger(__name__)
 
 # The watt entities mirror the 5-100 % range of their paired percentage entity.
 WATT_KEYS = (CHARGE_POWER_WATT, DISCHARGE_POWER_WATT)
+PERCENT_KEYS = (CHARGE_POWER, DISCHARGE_POWER)
+LINKED_KEYS = (
+    (CHARGE_POWER, CHARGE_POWER_WATT),
+    (DISCHARGE_POWER, DISCHARGE_POWER_WATT),
+)
 MIN_POWER_PERCENT = 5
 
 
-def _full_scale_power(coordinator: EatonXstorageHomeCoordinator) -> int:
-    """Return the inverter power rating used to convert percentages to watts.
-
-    The range spans 3.6 kW to 6 kW, so the rating has to come from the device.
-    inverterPowerRating needs a technician account and reads 0 on at least the
-    3.6 kW model, hence the greater-than-zero guard; inverterVaRating is the
-    closest equivalent a customer account can read.
-    """
-    data = coordinator.data or {}
-    for rating in (
-        data.get("technical_status", {}).get("inverterPowerRating"),
-        data.get("device", {}).get("inverterVaRating"),
-    ):
-        if isinstance(rating, (int, float)) and rating > 0:
-            return int(rating)
-    return DEFAULT_INVERTER_POWER_RATING
-
-
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: EatonConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Eaton Battery Storage number platform."""
     coordinator = entry.runtime_data
-    full_scale = _full_scale_power(coordinator)
 
-    # Setup storage for local number values (for percentage/watt conversions)
-    store: Store[dict[str, float]] = Store(hass, 1, f"{DOMAIN}_number_values.json")
-    stored = await store.async_load() or {}
-
-    # Store data directly on the coordinator for access by entities
-    if not hasattr(coordinator, "number_values"):
-        coordinator.number_values = stored
-        # Set defaults for missing values
-        for desc in NUMBER_ENTITIES:
-            key = desc["key"]
-            if key not in coordinator.number_values:
-                default = desc.get("default")
-                if default is not None:
-                    coordinator.number_values[key] = default
-        # Set linked watt values if percent defaults are set
-        if "charge_power" in coordinator.number_values:
-            coordinator.number_values["charge_power_watt"] = round(
-                (coordinator.number_values["charge_power"] / 100) * full_scale
-            )
-        if "discharge_power" in coordinator.number_values:
-            coordinator.number_values["discharge_power_watt"] = round(
-                (coordinator.number_values["discharge_power"] / 100) * full_scale
-            )
-        # Save defaults if storage was empty
-        if not stored:
-            await store.async_save(coordinator.number_values)
-    if not hasattr(coordinator, "number_store"):
-        coordinator.number_store = store
-
-    entities: list[NumberEntity] = []
-
-    # Add configurable number entities from constants
-    entities.extend(
-        EatonBatteryNumberEntity(coordinator, desc) for desc in NUMBER_ENTITIES
-    )
-
-    # Add API-controlled settings entities
+    entities: list[NumberEntity] = [
+        EatonBatteryNumberEntity(coordinator, description)
+        for description in NUMBER_ENTITIES
+    ]
     entities.extend(
         [
             EatonXStorageHouseConsumptionThresholdNumber(coordinator),
@@ -142,25 +100,36 @@ class EatonBatteryNumberEntity(EatonEntity, NumberEntity):
         self._attr_native_unit_of_measurement = description["unit"]
         self._attr_device_class = NumberDeviceClass(description["device_class"])
 
+    @property
+    def native_min_value(self) -> float:
+        """Return the minimum, which for watts follows the inverter rating."""
         if self._key in WATT_KEYS:
-            full_scale = _full_scale_power(coordinator)
-            self._attr_native_min_value = float(
-                round(full_scale * MIN_POWER_PERCENT / 100)
-            )
-            self._attr_native_max_value = float(full_scale)
+            full_scale = self.coordinator.full_scale_power
+            return float(round(full_scale * MIN_POWER_PERCENT / 100))
+        return self._attr_native_min_value
+
+    @property
+    def native_max_value(self) -> float:
+        """Return the maximum, which for watts follows the inverter rating."""
+        if self._key in WATT_KEYS:
+            return float(self.coordinator.full_scale_power)
+        return self._attr_native_max_value
 
     async def async_added_to_hass(self) -> None:
         """Register for dispatcher updates."""
         await super().async_added_to_hass()
         self.async_on_remove(
             async_dispatcher_connect(
-                self.hass, f"{DOMAIN}_number_update", self._handle_external_update
+                self.hass,
+                number_update_signal(self.coordinator.config_entry.entry_id),
+                self._handle_external_update,
             )
         )
 
+    @callback
     def _handle_external_update(self) -> None:
-        """Handle external updates via dispatcher."""
-        self.schedule_update_ha_state()
+        """Handle the paired entity having written a new linked value."""
+        self.async_write_ha_state()
 
     @property
     def extra_state_attributes(self) -> dict[str, int] | None:
@@ -169,68 +138,46 @@ class EatonBatteryNumberEntity(EatonEntity, NumberEntity):
         if native_val is None:
             return None
 
-        full_scale = _full_scale_power(self.coordinator)
-        if self._key in ("charge_power", "discharge_power"):
+        full_scale = self.coordinator.full_scale_power
+        if self._key in PERCENT_KEYS:
             return {"wattage": round((native_val / 100) * full_scale)}
-        if self._key in ("charge_power_watt", "discharge_power_watt"):
+        if self._key in WATT_KEYS:
             return {"percent": round((native_val / full_scale) * 100)}
         return None
 
     @property
     def native_value(self) -> float | None:
         """Return the current value from storage."""
-        return getattr(self.coordinator, "number_values", {}).get(self._key)
+        return self.coordinator.number_values.get(self._key)
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the number value and update linked entities."""
-        # Ensure number_values exists on coordinator
-        if not hasattr(self.coordinator, "number_values"):
-            self.coordinator.number_values = {}
-        if not hasattr(self.coordinator, "number_store"):
-            store: Store[dict[str, float]] = Store(
-                self.hass, 1, f"{DOMAIN}_number_values.json"
-            )
-            self.coordinator.number_store = store
-
-        # Store the value
         self.coordinator.number_values[self._key] = value
-
-        # Calculate and store linked values
         linked_key = self._calculate_linked_value(value)
 
-        # Save to persistent storage
         await self.coordinator.number_store.async_save(self.coordinator.number_values)
-
-        # Update this entity
         self.async_write_ha_state()
 
-        # Notify other entities via dispatcher
         if linked_key:
-            async_dispatcher_send(self.hass, f"{DOMAIN}_number_update")
+            async_dispatcher_send(
+                self.hass,
+                number_update_signal(self.coordinator.config_entry.entry_id),
+            )
 
     def _calculate_linked_value(self, value: float) -> str | None:
         """Calculate and store linked value, return linked key if any."""
-        full_scale = _full_scale_power(self.coordinator)
-        if self._key == "charge_power":
-            self.coordinator.number_values["charge_power_watt"] = round(
-                (value / 100) * full_scale
-            )
-            return "charge_power_watt"
-        if self._key == "charge_power_watt":
-            self.coordinator.number_values["charge_power"] = round(
-                (value / full_scale) * 100
-            )
-            return "charge_power"
-        if self._key == "discharge_power":
-            self.coordinator.number_values["discharge_power_watt"] = round(
-                (value / 100) * full_scale
-            )
-            return "discharge_power_watt"
-        if self._key == "discharge_power_watt":
-            self.coordinator.number_values["discharge_power"] = round(
-                (value / full_scale) * 100
-            )
-            return "discharge_power"
+        full_scale = self.coordinator.full_scale_power
+        for percent_key, watt_key in LINKED_KEYS:
+            if self._key == percent_key:
+                self.coordinator.number_values[watt_key] = round(
+                    (value / 100) * full_scale
+                )
+                return watt_key
+            if self._key == watt_key:
+                self.coordinator.number_values[percent_key] = round(
+                    (value / full_scale) * 100
+                )
+                return percent_key
         return None
 
 

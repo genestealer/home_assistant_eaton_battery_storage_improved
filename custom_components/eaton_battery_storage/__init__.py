@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import voluptuous as vol
@@ -18,7 +19,6 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.reload import async_reload_integration_platforms
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
 
@@ -36,7 +36,12 @@ from .const import (
     DOMAIN,
     sensor_unique_id,
 )
-from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
+from .coordinator import (
+    EatonConfigEntry,
+    EatonXstorageHomeCoordinator,
+    number_store_key,
+)
+from .sensor import SENSOR_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,22 +57,9 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
 ]
 
-# List of PV-related sensor keys that should be disabled when has_pv=False
+# Sensor keys that should be disabled when has_pv=False.
 PV_SENSOR_KEYS = [
-    "device.inverterNominalVpv",
-    "status.energyFlow.acPvRole",
-    "status.energyFlow.acPvValue",
-    "status.energyFlow.dcPvRole",
-    "status.energyFlow.dcPvValue",
-    "status.last30daysEnergyFlow.photovoltaicProduction",
-    "status.today.photovoltaicProduction",
-    "technical_status.dcCurrentInjectionR",
-    "technical_status.dcCurrentInjectionS",
-    "technical_status.dcCurrentInjectionT",
-    "technical_status.pv1Current",
-    "technical_status.pv1Voltage",
-    "technical_status.pv2Current",
-    "technical_status.pv2Voltage",
+    key for key, description in SENSOR_TYPES.items() if description.get("pv_related")
 ]
 
 
@@ -75,7 +67,12 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up the Eaton xStorage Home integration."""
 
     async def reload_service_handler(_call: ServiceCall) -> None:
-        await async_reload_integration_platforms(hass, DOMAIN, PLATFORMS)
+        await asyncio.gather(
+            *(
+                hass.config_entries.async_reload(entry.entry_id)
+                for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+            )
+        )
 
     async_register_admin_service(
         hass, DOMAIN, SERVICE_RELOAD, reload_service_handler, schema=vol.Schema({})
@@ -110,6 +107,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: EatonConfigEntry) -> boo
     coordinator = EatonXstorageHomeCoordinator(hass, api, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+
+    # The select platform reads these to build its commands, and platforms are
+    # forwarded concurrently, so they have to be in place beforehand.
+    await coordinator.async_load_number_values()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -205,5 +206,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: EatonConfigEntry) -> bo
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Remove the persisted access token when the entry is deleted."""
+    """Remove the data persisted for the entry when it is deleted."""
     await Store(hass, 1, token_store_key(entry.entry_id)).async_remove()
+    await Store(hass, 1, number_store_key(entry.entry_id)).async_remove()

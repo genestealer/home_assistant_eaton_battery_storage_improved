@@ -34,7 +34,7 @@ CHARGE_POWER_WATT_KEY = "charge_power_watt"
 
 async def setup_entry(hass: HomeAssistant, data: dict[str, Any]) -> MockConfigEntry:
     """Set up a config entry and return it."""
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=data, minor_version=2)
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=data, minor_version=3)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -226,3 +226,21 @@ async def test_a_rejected_write_restores_the_device_value(
         await set_number(hass, entity_id, value)
 
     assert hass.states.get(entity_id).state == before
+
+
+async def test_values_saved_before_the_store_was_scoped_are_kept(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    hass_storage: dict[str, Any],
+) -> None:
+    """Every entry used to share one store, so upgrading must not reset it."""
+    hass_storage[f"{DOMAIN}_number_values.json"] = {
+        "version": 1,
+        "data": {CHARGE_POWER_KEY: 75, "charge_duration": 9},
+    }
+    mock_device(aioclient_mock)
+
+    entry = await setup_entry(hass, TECH_INPUT)
+
+    assert hass.states.get(entity_id_for(hass, entry, CHARGE_POWER_KEY)).state == "75"
+    assert hass.states.get(entity_id_for(hass, entry, "charge_duration")).state == "9"

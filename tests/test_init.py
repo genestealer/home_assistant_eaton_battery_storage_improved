@@ -1,7 +1,6 @@
 """Tests for the Eaton xStorage Home integration setup and migration."""
 
 from typing import Any
-from unittest.mock import patch
 
 import aiohttp
 import pytest
@@ -39,7 +38,7 @@ async def setup_entry(hass: HomeAssistant, entry: MockConfigEntry) -> None:
 async def test_setup_and_unload(hass: HomeAssistant) -> None:
     """The entry sets up its platforms and unloads cleanly."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
 
@@ -55,7 +54,7 @@ async def test_setup_and_unload(hass: HomeAssistant) -> None:
 async def test_device_is_keyed_on_the_serial(hass: HomeAssistant) -> None:
     """The device registry entry never carries a host based identifier."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
 
@@ -94,7 +93,7 @@ async def test_setup_failures(
     """Authentication and connectivity failures are reported differently."""
     aioclient_mock.post(f"{BASE_URL}/api/auth/signin", **signin_response)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
 
@@ -112,7 +111,7 @@ async def test_setup_retries_when_the_device_returns_no_status(
     )
     mock_device(aioclient_mock)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
 
@@ -165,7 +164,7 @@ async def test_migrate_entry_drops_host_device_identifier(
 async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
     """Turning the PV option off hides the sensors it created, and back on restores them."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
     entity_registry = er.async_get(hass)
@@ -192,7 +191,7 @@ async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
 async def test_a_user_disabled_pv_sensor_is_left_alone(hass: HomeAssistant) -> None:
     """A deliberate user choice must survive the PV migration."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
     entity_registry = er.async_get(hass)
@@ -218,7 +217,7 @@ async def test_removing_the_entry_deletes_the_stored_token(
 ) -> None:
     """The device credentials must not outlive the config entry."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
     store_key = token_store_key(entry.entry_id)
@@ -231,20 +230,20 @@ async def test_removing_the_entry_deletes_the_stored_token(
 
 
 @pytest.mark.usefixtures("mock_connected_device")
-async def test_the_reload_service_reloads_the_platforms(hass: HomeAssistant) -> None:
-    """The reload service keeps the entry loaded."""
+async def test_the_reload_service_repolls_the_device(hass: HomeAssistant) -> None:
+    """Reloading tears the entry down and sets it back up against the device."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
+    coordinator = entry.runtime_data
 
-    with patch(
-        "homeassistant.config.async_hass_config_yaml", return_value={DOMAIN: {}}
-    ):
-        await hass.services.async_call(DOMAIN, SERVICE_RELOAD, {}, blocking=True)
-        await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, SERVICE_RELOAD, {}, blocking=True)
+    await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
+    # A reload replaces the coordinator, so the old one cannot still be in use.
+    assert entry.runtime_data is not coordinator
 
 
 @pytest.mark.usefixtures("mock_connected_device")
@@ -253,7 +252,7 @@ async def test_every_registered_service_is_described(
 ) -> None:
     """A service missing from services.yaml makes Home Assistant log an error."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=3
     )
     await setup_entry(hass, entry)
 
