@@ -20,14 +20,22 @@ PARALLEL_UPDATES = 1
 
 _LOGGER = logging.getLogger(__name__)
 
-# Supported default modes and their command codes
-DEFAULT_MODE_OPTIONS: list[tuple[str, str]] = [
-    ("Basic Mode", "SET_BASIC_MODE"),
-    ("Maximize Auto Consumption", "SET_MAXIMIZE_AUTO_CONSUMPTION"),
-    ("Variable Grid Injection", "SET_VARIABLE_GRID_INJECTION"),
-    ("Frequency Regulation", "SET_FREQUENCY_REGULATION"),
-    ("Peak Shaving", "SET_PEAK_SHAVING"),
-]
+# Option keys are the device command in snake_case, so the mapping back to the
+# API stays obvious; the labels live in strings.json. Names follow the operation
+# modes reference in the eaton-xstorage-home-api-doc repository.
+DEFAULT_MODE_OPTIONS: dict[str, str] = {
+    "basic_mode": "SET_BASIC_MODE",
+    "maximize_auto_consumption": "SET_MAXIMIZE_AUTO_CONSUMPTION",
+    "variable_grid_injection": "SET_VARIABLE_GRID_INJECTION",
+    "frequency_regulation": "SET_FREQUENCY_REGULATION",
+    "peak_shaving": "SET_PEAK_SHAVING",
+}
+
+# The dashboard can also drive the two manual modes, which settings cannot.
+MANUAL_MODE_OPTIONS: dict[str, str] = {
+    "manual_charge": "SET_CHARGE",
+    "manual_discharge": "SET_DISCHARGE",
+}
 
 # Fallback state of charge used by frequency regulation when the device does
 # not report a backup level.
@@ -55,11 +63,14 @@ class EatonXStorageBaseSelect(EatonEntity, SelectEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
+    def __init__(
+        self, coordinator: EatonXstorageHomeCoordinator, options: dict[str, str]
+    ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator)
-        self._option_to_cmd: dict[str, str] = {}
-        self._cmd_to_label: dict[str, str] = {}
+        self._option_to_cmd = options
+        self._cmd_to_option = {cmd: option for option, cmd in options.items()}
+        self._attr_options = list(options)
 
 
 class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
@@ -70,20 +81,17 @@ class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the select entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, DEFAULT_MODE_OPTIONS)
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_default_operation_mode"
         )
-        self._option_to_cmd = dict(DEFAULT_MODE_OPTIONS)
-        self._cmd_to_label = {cmd: label for label, cmd in DEFAULT_MODE_OPTIONS}
-        self._attr_options = list(self._option_to_cmd)
 
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
         settings = (self.coordinator.data or {}).get("settings", {})
         default_mode = settings.get("defaultMode", {})
-        return self._cmd_to_label.get(default_mode.get("command"))
+        return self._cmd_to_option.get(default_mode.get("command"))
 
     def _build_parameters(self, command: str, settings: dict) -> dict[str, int]:
         """Build the parameters the device expects for the selected command."""
@@ -140,23 +148,17 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the select entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, DEFAULT_MODE_OPTIONS | MANUAL_MODE_OPTIONS)
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_current_operation_mode"
         )
-        self._option_to_cmd = dict(DEFAULT_MODE_OPTIONS) | {
-            "Manual Charge": "SET_CHARGE",
-            "Manual Discharge": "SET_DISCHARGE",
-        }
-        self._cmd_to_label = {cmd: label for label, cmd in self._option_to_cmd.items()}
-        self._attr_options = list(self._option_to_cmd)
 
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
         status = (self.coordinator.data or {}).get("status", {})
         current_mode = status.get("currentMode", {})
-        return self._cmd_to_label.get(resolve_mode_command(current_mode))
+        return self._cmd_to_option.get(resolve_mode_command(current_mode))
 
     def _command_duration(self, command: str, helper_values: dict) -> int:
         """Return the run duration in hours configured for this command."""

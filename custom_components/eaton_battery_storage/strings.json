@@ -483,10 +483,26 @@
     },
     "select": {
       "default_operation_mode": {
-        "name": "Default operation mode"
+        "name": "Default operation mode",
+        "state": {
+          "basic_mode": "Unit On (Basic Mode)",
+          "maximize_auto_consumption": "Maximize Auto-Consumption",
+          "variable_grid_injection": "Variable Grid Injection",
+          "frequency_regulation": "Frequency Regulation",
+          "peak_shaving": "Peak Shaving"
+        }
       },
       "current_operation_mode": {
-        "name": "Current operation mode"
+        "name": "Current operation mode",
+        "state": {
+          "basic_mode": "Unit On (Basic Mode)",
+          "maximize_auto_consumption": "Maximize Auto-Consumption",
+          "variable_grid_injection": "Variable Grid Injection",
+          "frequency_regulation": "Frequency Regulation",
+          "peak_shaving": "Peak Shaving",
+          "manual_charge": "Manual Charge",
+          "manual_discharge": "Manual Discharge"
+        }
       }
     },
     "button": {

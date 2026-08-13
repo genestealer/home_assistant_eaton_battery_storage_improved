@@ -33,6 +33,19 @@ and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 
 ### Changed
 
+- **The operation mode selects now use translatable option values.** Both **Default operation
+  mode** and **Current operation mode** previously used display strings such as `Basic Mode`
+  and `Maximize Auto Consumption` as their values, which cannot be translated. The values are
+  now the device command in snake_case — `basic_mode`, `maximize_auto_consumption`,
+  `variable_grid_injection`, `frequency_regulation`, `peak_shaving`, `manual_charge` and
+  `manual_discharge` — and the labels come from the translations, taking their wording from
+  the operation modes reference in the
+  [API documentation](https://github.com/genestealer/eaton-xstorage-home-api-doc).
+- **Grid Frequency no longer hides a reading of 0 Hz.** That is what a grid outage looks like,
+  so suppressing it removed the signal the check was meant to protect. The other readings the
+  device zeroes when it cannot take them are still dropped, and
+  [the device API behaviour notes](docs/device-api-behaviour.md) now record the measurements
+  behind each decision.
 - **Adding an inverter now requires its serial number.** The config flow used to fall back to
   `{host}_{username}` when the device did not report one, which put the IP address back into
   the identity the rest of this release works to remove. When no serial is available the form
@@ -181,6 +194,10 @@ Adding a new inverter now requires the device to report its serial number, or th
 be typed into the **Inverter Serial Number** field. Existing entries are unaffected, and an
 entry still keyed on its IP address is re-keyed to the serial the next time it
 re-authenticates.
+
+Automations and scripts that set either operation mode select need their `option` updated to
+the new value, for example `Basic Mode` becomes `basic_mode` and `Maximize Auto Consumption`
+becomes `maximize_auto_consumption`. The dropdown itself still reads the same in the UI.
 - System health no longer crashes when the first config entry is disabled or retrying setup.
 - The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
 - Cell voltage sensors declare their display precision explicitly instead of relying on

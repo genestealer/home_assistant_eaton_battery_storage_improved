@@ -1,5 +1,8 @@
 """Tests for the Eaton xStorage Home select platform."""
 
+import json
+from pathlib import Path
+
 import pytest
 from homeassistant.components.select import (
     ATTR_OPTION,
@@ -16,6 +19,10 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.eaton_battery_storage.const import DOMAIN
+from custom_components.eaton_battery_storage.select import (
+    DEFAULT_MODE_OPTIONS,
+    MANUAL_MODE_OPTIONS,
+)
 
 from .conftest import (
     BASE_URL,
@@ -77,7 +84,7 @@ async def test_selecting_a_mode_sends_the_configured_helpers(
     await hass.services.async_call(
         SELECT_DOMAIN,
         SERVICE_SELECT_OPTION,
-        {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "Manual Charge"},
+        {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "manual_charge"},
         blocking=True,
     )
 
@@ -96,22 +103,22 @@ async def test_selecting_a_mode_sends_the_configured_helpers(
                 "command": "SET_CHARGE",
                 "parameters": {"action": "ACTION_DISCHARGE"},
             },
-            "Manual Discharge",
+            "manual_discharge",
             id="discharge_echoed_as_a_charge_command",
         ),
         pytest.param(
             {"command": "SET_CHARGE", "parameters": {"action": "ACTION_CHARGE"}},
-            "Manual Charge",
+            "manual_charge",
             id="charge",
         ),
         pytest.param(
             {"command": "SET_DISCHARGE"},
-            "Manual Discharge",
+            "manual_discharge",
             id="discharge_without_an_action",
         ),
         pytest.param(
             {"command": "SET_BASIC_MODE"},
-            "Basic Mode",
+            "basic_mode",
             id="intelligent_mode_ignores_the_action",
         ),
     ],
@@ -141,11 +148,11 @@ async def test_a_rejected_command_raises(
     mock_device(aioclient_mock)
     await setup_entry(hass)
 
-    with raises(HomeAssistantError, match="Basic Mode"):
+    with raises(HomeAssistantError, match="basic_mode"):
         await hass.services.async_call(
             SELECT_DOMAIN,
             SERVICE_SELECT_OPTION,
-            {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "Basic Mode"},
+            {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "basic_mode"},
             blocking=True,
         )
 
@@ -154,19 +161,19 @@ async def test_a_rejected_command_raises(
     ("option", "expected_parameters"),
     [
         pytest.param(
-            "Peak Shaving",
+            "peak_shaving",
             {"maxHousePeakConsumption": 400},
             id="peak_shaving_reads_the_configured_threshold",
         ),
         pytest.param(
-            "Variable Grid Injection", {"maximumPower": 0}, id="variable_grid_injection"
+            "variable_grid_injection", {"maximumPower": 0}, id="variable_grid_injection"
         ),
         pytest.param(
-            "Frequency Regulation",
+            "frequency_regulation",
             {"powerAllocation": 0, "optimalSoc": 30},
             id="frequency_regulation_reads_the_backup_level",
         ),
-        pytest.param("Basic Mode", {}, id="basic_mode_takes_no_parameters"),
+        pytest.param("basic_mode", {}, id="basic_mode_takes_no_parameters"),
     ],
 )
 async def test_an_intelligent_mode_carries_its_settings(
@@ -203,14 +210,14 @@ async def test_the_default_mode_is_read_from_the_settings(
     )
     await setup_entry(hass)
 
-    assert hass.states.get(DEFAULT_MODE_ENTITY_ID).state == "Peak Shaving"
+    assert hass.states.get(DEFAULT_MODE_ENTITY_ID).state == "peak_shaving"
 
 
 @pytest.mark.parametrize(
     ("option", "expected_default_mode"),
     [
         pytest.param(
-            "Peak Shaving",
+            "peak_shaving",
             {
                 "command": "SET_PEAK_SHAVING",
                 "parameters": {"maxHousePeakConsumption": 400},
@@ -218,7 +225,7 @@ async def test_the_default_mode_is_read_from_the_settings(
             id="peak_shaving",
         ),
         pytest.param(
-            "Frequency Regulation",
+            "frequency_regulation",
             {
                 "command": "SET_FREQUENCY_REGULATION",
                 "parameters": {"powerAllocation": 0, "optimalSoc": 30},
@@ -226,7 +233,7 @@ async def test_the_default_mode_is_read_from_the_settings(
             id="frequency_regulation",
         ),
         pytest.param(
-            "Maximize Auto Consumption",
+            "maximize_auto_consumption",
             {"command": "SET_MAXIMIZE_AUTO_CONSUMPTION", "parameters": {}},
             id="maximize_auto_consumption",
         ),
@@ -266,10 +273,27 @@ async def test_a_rejected_default_mode_write_raises(
     mock_device(aioclient_mock)
     await setup_entry(hass)
 
-    with raises(HomeAssistantError, match="Basic Mode"):
+    with raises(HomeAssistantError, match="basic_mode"):
         await hass.services.async_call(
             SELECT_DOMAIN,
             SERVICE_SELECT_OPTION,
-            {ATTR_ENTITY_ID: DEFAULT_MODE_ENTITY_ID, ATTR_OPTION: "Basic Mode"},
+            {ATTR_ENTITY_ID: DEFAULT_MODE_ENTITY_ID, ATTR_OPTION: "basic_mode"},
             blocking=True,
         )
+
+
+def test_every_option_has_a_translation() -> None:
+    """A select option is a key, so a missing label shows the raw key to the user."""
+    strings = json.loads(
+        (
+            Path(__file__).parent.parent
+            / "custom_components/eaton_battery_storage/strings.json"
+        ).read_text()
+    )
+    select_strings = strings["entity"]["select"]
+
+    for translation_key, options in (
+        ("default_operation_mode", DEFAULT_MODE_OPTIONS),
+        ("current_operation_mode", DEFAULT_MODE_OPTIONS | MANUAL_MODE_OPTIONS),
+    ):
+        assert set(select_strings[translation_key]["state"]) == set(options)
