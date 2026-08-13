@@ -77,7 +77,18 @@ and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 - `PARALLEL_UPDATES` is declared on every platform: `0` for the read-only ones, `1` for the
   command platforms.
 - Password fields are no longer prefilled in the reauth and options forms.
-- Saving the options form writes the entry once and reloads once, instead of twice.
+- Connection settings are changed through a reconfigure flow rather than an options flow.
+  They were always written to the entry data rather than to its options, so the options flow
+  was only ever a reconfigure flow with the wrong name and the wrong abort reason. The entry
+  no longer registers a config entry update listener either: the reconfigure and reauth steps
+  schedule their own reload, and Home Assistant warns that combining the two breaks in
+  2026.12.
+- Connection settings are changed through a reconfigure flow rather than an options flow.
+  They were always written to the entry data rather than to its options, so the options flow
+  was only ever a reconfigure flow with the wrong name and the wrong abort reason. The entry
+  no longer registers a config entry update listener either: the reconfigure and reauth steps
+  schedule their own reload, and Home Assistant warns that pairing the two with
+  `async_update_reload_and_abort` stops working in 2026.12.
 - `quality_scale.yaml` now lists every rule through Platinum with an accurate status. The
   `"quality_scale": "bronze"` claim was removed from `manifest.json` until the remaining
   Bronze rules (brands, removal instructions) are met, since it was self-asserted and

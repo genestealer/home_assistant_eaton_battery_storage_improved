@@ -34,30 +34,9 @@
           "has_pv": "Check this box only if you have solar panels connected to your Eaton xStorage system.",
           "verify_ssl": "The inverter ships with a self-signed certificate, so verification is off by default."
         }
-      }
-    },
-    "error": {
-      "cannot_connect": "Failed to connect to the device. Please check your network connection and device settings.",
-      "invalid_auth": "Authentication failed. Please check your credentials.",
-      "err_invalid_inverter_sn": "Invalid inverter serial number.",
-      "err_wrong_credentials": "Wrong username or password.",
-      "auth_error_locked": "Your account was locked due to too many failed login attempts. Please try again in 10 minutes.",
-      "required_inverter_sn": "Inverter serial number required for technician account.",
-      "invalid_host": "Enter a valid IP address or hostname, without a scheme or path.",
-      "unknown_serial": "The device did not report its serial number, which is needed to identify it. Please try again, or enter the inverter serial number.",
-      "unknown": "Unexpected error occurred during setup."
-    },
-    "abort": {
-      "single_instance_allowed": "Only a single instance is allowed.",
-      "already_configured": "This device is already configured.",
-      "unique_id_mismatch": "The serial number of the device does not match the one this entry was set up with. Please re-authenticate against the original inverter.",
-      "reauth_successful": "Re-authentication was successful."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "description": "Update your Eaton xStorage Home configuration. Choose Customer for basic access or Technician for advanced diagnostics. Enable PV sensors only if you have solar panels connected to your system.",
+      },
+      "reconfigure": {
+        "description": "Update the connection settings for your Eaton xStorage Home system. Changing these reloads the integration.",
         "data": {
           "host": "Device IP Address or Hostname",
           "user_type": "Account Type",
@@ -82,9 +61,14 @@
       "auth_error_locked": "Your account was locked due to too many failed login attempts. Please try again in 10 minutes.",
       "required_inverter_sn": "Inverter serial number required for technician account.",
       "invalid_host": "Enter a valid IP address or hostname, without a scheme or path.",
+      "unknown_serial": "The device did not report its serial number, which is needed to identify it. Please try again, or enter the inverter serial number.",
       "unknown": "Unexpected error occurred during setup."
     },
     "abort": {
+      "single_instance_allowed": "Only a single instance is allowed.",
+      "already_configured": "This device is already configured.",
+      "unique_id_mismatch": "The serial number of the device does not match the one this entry was set up with. Please re-authenticate against the original inverter.",
+      "reauth_successful": "Re-authentication was successful.",
       "reconfigure_successful": "Configuration updated."
     }
   },

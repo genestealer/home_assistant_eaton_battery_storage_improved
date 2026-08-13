@@ -114,10 +114,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EatonConfigEntry) -> boo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Run initial PV sensor migration for existing installations
+    # Applies the has_pv option, which the reconfigure flow changes before it
+    # schedules the reload that brings us back here.
     async_migrate_pv_sensors(hass, entry)
-
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     return True
 
@@ -162,14 +161,6 @@ def _async_migrate_device_identifiers(
         device_registry.async_update_device(
             device.id, new_identifiers=remaining or {(DOMAIN, entry.entry_id)}
         )
-
-
-async def async_update_options(hass: HomeAssistant, entry: EatonConfigEntry) -> None:
-    """Update options and handle PV sensor migration."""
-    async_migrate_pv_sensors(hass, entry)
-
-    # Reload so entities are recreated for the new user_type
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 @callback

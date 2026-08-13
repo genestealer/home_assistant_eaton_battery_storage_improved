@@ -80,9 +80,7 @@ rules:
   icon-translations:
     status: todo
     comment: Icons are still set through _attr_icon instead of icons.json.
-  reconfiguration-flow:
-    status: todo
-    comment: Connection settings are changed through the options flow instead.
+  reconfiguration-flow: done
   repair-issues:
     status: exempt
     comment: >-

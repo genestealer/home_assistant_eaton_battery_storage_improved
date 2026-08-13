@@ -4,7 +4,7 @@ from typing import Any
 
 import aiohttp
 import pytest
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import SOURCE_RECONFIGURE, ConfigEntryState
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -31,6 +31,18 @@ async def setup_entry(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     """Add the entry to hass and set it up."""
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def reconfigure(
+    hass: HomeAssistant, entry: MockConfigEntry, data: dict[str, Any]
+) -> None:
+    """Change the entry's settings the way a user does, through the flow."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], data)
     await hass.async_block_till_done()
 
 
@@ -173,16 +185,14 @@ async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
     )
     assert entity_registry.async_get(entity_id).disabled_by is None
 
-    hass.config_entries.async_update_entry(entry, data=USER_INPUT)
-    await hass.async_block_till_done()
+    await reconfigure(hass, entry, USER_INPUT)
 
     assert (
         entity_registry.async_get(entity_id).disabled_by
         is er.RegistryEntryDisabler.INTEGRATION
     )
 
-    hass.config_entries.async_update_entry(entry, data=PV_INPUT)
-    await hass.async_block_till_done()
+    await reconfigure(hass, entry, PV_INPUT)
 
     assert entity_registry.async_get(entity_id).disabled_by is None
 
@@ -202,8 +212,7 @@ async def test_a_user_disabled_pv_sensor_is_left_alone(hass: HomeAssistant) -> N
         entity_id, disabled_by=er.RegistryEntryDisabler.USER
     )
 
-    hass.config_entries.async_update_entry(entry, data=USER_INPUT)
-    await hass.async_block_till_done()
+    await reconfigure(hass, entry, USER_INPUT)
 
     assert (
         entity_registry.async_get(entity_id).disabled_by

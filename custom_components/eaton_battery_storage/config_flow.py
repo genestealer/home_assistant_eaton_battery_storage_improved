@@ -11,10 +11,9 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector as sel
 
 from .api import EatonAuthError, EatonBatteryAPI, EatonError
@@ -49,7 +48,7 @@ async def _async_test_connection(
 ) -> str | None:
     """Test the connection and return the inverter serial if the device reports it.
 
-    Shared helper used by ConfigFlow, OptionsFlow, and ReauthFlow.
+    Shared helper used by the user, reconfigure and reauth steps.
     """
     api = EatonBatteryAPI(
         hass=hass,
@@ -167,12 +166,6 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 2
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(_config_entry: ConfigEntry) -> EatonXStorageOptionsFlow:
-        """Create the options flow."""
-        return EatonXStorageOptionsFlow()
-
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -213,15 +206,15 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reauth when credentials expire."""
         return await self.async_step_reauth_confirm()
 
-    async def _async_check_reauth_identity(
+    async def _async_check_identity(
         self, entry: ConfigEntry, serial: str | None
     ) -> None:
-        """Refuse a reauth that points the entry at a different inverter."""
+        """Refuse a flow that points the entry at a different inverter."""
         if not serial or serial == entry.unique_id:
             return
         if entry.unique_id == entry.data[CONF_HOST]:
             # Entries created before the serial was readable were keyed on the
-            # host; reauth is the only chance to give them a stable identity.
+            # host; this is the only chance to give them a stable identity.
             return
         await self.async_set_unique_id(serial)
         self._abort_if_unique_id_mismatch()
@@ -236,11 +229,11 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             serial = await _async_validate_input(self.hass, user_input, errors)
             if not errors:
-                await self._async_check_reauth_identity(reauth_entry, serial)
+                await self._async_check_identity(reauth_entry, serial)
                 return self.async_update_reload_and_abort(
                     reauth_entry,
                     unique_id=serial or reauth_entry.unique_id,
-                    data={**user_input, CONF_EMAIL: API_EMAIL},
+                    data_updates={**user_input, CONF_EMAIL: API_EMAIL},
                 )
 
         defaults = user_input or dict(reauth_entry.data)
@@ -254,30 +247,27 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-
-class EatonXStorageOptionsFlow(OptionsFlow):
-    """Handle options flow for Eaton xStorage Home."""
-
-    async def async_step_init(
+    async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Change the connection settings of an existing entry."""
         errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
 
         if user_input is not None:
-            await _async_validate_input(self.hass, user_input, errors)
+            serial = await _async_validate_input(self.hass, user_input, errors)
             if not errors:
-                # Connection settings live in the entry data; writing them here
-                # fires the update listener, which reloads the entry.
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data={**user_input, CONF_EMAIL: API_EMAIL}
+                await self._async_check_identity(reconfigure_entry, serial)
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    unique_id=serial or reconfigure_entry.unique_id,
+                    data_updates={**user_input, CONF_EMAIL: API_EMAIL},
                 )
-                return self.async_abort(reason="reconfigure_successful")
 
-        defaults = user_input or dict(self.config_entry.data)
+        defaults = user_input or dict(reconfigure_entry.data)
 
         return self.async_show_form(
-            step_id="init",
+            step_id="reconfigure",
             data_schema=_build_user_schema(
                 user_type=defaults.get(CONF_USER_TYPE, ACCOUNT_TYPE_CUSTOMER),
                 defaults=defaults,

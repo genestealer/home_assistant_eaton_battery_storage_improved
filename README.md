@@ -290,8 +290,12 @@ Enable the option if you have installed a certificate that Home Assistant trusts
 You can change settings after installation:
 1. Go to **Settings** → **Devices & Services**
 2. Find **Eaton xStorage Home Battery**
-3. Click **Configure**
+3. Open the ⋮ menu on the entry and choose **Reconfigure**
 4. Update credentials, account type, or PV settings
+
+The integration reloads itself when you save. If the device reports a different serial number
+from the one the entry was set up with, the change is refused, so reconfiguring cannot
+silently move an entry onto another inverter.
 
 ## Troubleshooting
 

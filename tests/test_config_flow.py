@@ -4,7 +4,7 @@ from typing import Any
 
 import aiohttp
 import pytest
-from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_USER
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -14,6 +14,7 @@ from custom_components.eaton_battery_storage.const import DOMAIN
 
 from .conftest import (
     BASE_URL,
+    ENTRY_DATA,
     HOST,
     JSON_HEADERS,
     SERIAL,
@@ -354,16 +355,19 @@ async def test_reauth_flow_recovers_from_error(
 
 
 @pytest.mark.usefixtures("mock_connected_device")
-async def test_options_flow_writes_entry_data_once(hass: HomeAssistant) -> None:
-    """Saving options updates the entry data and aborts without writing options."""
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT)
+async def test_reconfigure_flow_updates_the_entry(hass: HomeAssistant) -> None:
+    """Reconfiguring writes the connection settings back to the entry data."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA)
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
+    assert result["step_id"] == "reconfigure"
 
-    result = await hass.config_entries.options.async_configure(
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {**USER_INPUT, "has_pv": True}
     )
     await hass.async_block_till_done()
@@ -371,22 +375,49 @@ async def test_options_flow_writes_entry_data_once(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data["has_pv"] is True
+    # data_updates merges, so the key the form does not collect is not dropped.
+    assert entry.data["email"] == "anything@anything.com"
     assert entry.options == {}
 
 
-async def test_options_flow_shows_error(
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_reconfigure_flow_refuses_a_different_inverter(
+    hass: HomeAssistant,
+) -> None:
+    """Reconfiguring must not silently re-point an entry at another device."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="SN-OTHER", data=ENTRY_DATA)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], USER_INPUT
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unique_id_mismatch"
+    assert entry.unique_id == "SN-OTHER"
+
+
+async def test_reconfigure_flow_shows_error(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """A connection failure keeps the options form open."""
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT)
+    """A connection failure keeps the reconfigure form open."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=SERIAL, data=ENTRY_DATA)
     entry.add_to_hass(hass)
     mock_signin_failure(aioclient_mock, exc=aiohttp.ClientConnectionError())
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], USER_INPUT
     )
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
-    assert entry.data == USER_INPUT
+    assert entry.data == ENTRY_DATA
