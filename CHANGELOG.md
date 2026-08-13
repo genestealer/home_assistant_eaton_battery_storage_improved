@@ -4,9 +4,10 @@ All notable changes to this integration are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-13
 
-Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08-01.md).
+Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08-01.md)
+and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 
 ### Added
 
@@ -32,6 +33,18 @@ Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08
 
 ### Changed
 
+- **Adding an inverter now requires its serial number.** The config flow used to fall back to
+  `{host}_{username}` when the device did not report one, which put the IP address back into
+  the identity the rest of this release works to remove. When no serial is available the form
+  now asks the user to retry or to type it in.
+- **System RAM Total** and **System RAM Used** are reported in MiB with the `data_size` device
+  class. They were labelled MB while dividing by 1024², so every reading was about 5 % out
+  against its own unit. The **Technical Info** attribute is renamed to `system_ram_total_mib`
+  to match.
+- The config flow no longer displays the vendor's default technician password; it points at
+  the documentation instead.
+- The notification and static info sensors keep their bulky attributes out of the recorder,
+  so the full alert list is no longer written to the database on every state change.
 - **Device identity is now keyed on the inverter serial number.** The host-based identifier
   is removed from existing devices on upgrade, and the config entry unique ID is migrated
   from `{host}_{serial}` to the bare serial. A device that changes IP address now updates its
@@ -74,6 +87,30 @@ The unit, enum and `services.yaml` fixes below had no issue raised against them.
 found while verifying the sensor platform against the API documentation, a live inverter and
 the Home Assistant log, so there is nothing to link them to beyond this entry and the
 readings recorded in [the device API behaviour notes](docs/device-api-behaviour.md).
+
+- The **Reload** action did nothing. It called a helper meant for YAML-configured platforms,
+  which re-read `configuration.yaml` and returned without touching the config entry, so the
+  device was never re-polled and no entity was rebuilt.
+- Numeric sensors whose reading comes back as `n/a` are now simply unknown. Home Assistant
+  refuses to add a numeric sensor holding a non-numeric value, so **BMS Highest Cell
+  Voltage** could vanish entirely rather than merely having no value.
+- The charge and discharge helper values are stored per config entry. Two inverters shared a
+  single file and overwrote each other's power, duration and target SOC. Values saved by an
+  earlier version are adopted on upgrade rather than reset to the defaults.
+- The helper values are loaded before the platforms start, so a mode command issued straight
+  after startup no longer falls back to hardcoded defaults.
+- A sign-in answered with an HTML page or an otherwise unexplained response is treated as the
+  device being unreachable instead of as a rejected password, so a reboot or a proxy in front
+  of the inverter no longer raises a spurious "re-authentication required" prompt.
+- Re-authenticating now refuses a different inverter instead of silently re-pointing the
+  entry at it, and re-keys entries that older versions left keyed on the IP address.
+- The watt sliders follow the inverter rating even when it only arrives after setup, instead
+  of staying capped at the 3600 W fallback until Home Assistant restarts.
+- The notification sensors survive a malformed entry in the device's notification list rather
+  than failing to write their state at all.
+- Authentication failures on the optional endpoints are surfaced instead of being swallowed,
+  which previously left every technician-only sensor unknown with nothing to explain it.
+- System health reports every configured inverter rather than only the first one.
 
 - A running manual discharge is no longer reported as a manual charge. The device echoes
   both directions back under the same command, so the direction is now read from the
@@ -132,6 +169,18 @@ The unit corrections above mean the recorder holds statistics for **Self Consump
 until that history is cleared. Those old readings were wrong, so delete them: go to
 **Developer tools → Statistics**, find each of the three sensors, and use **Fix issue** to
 remove the previously compiled statistics. Recording resumes on the next cycle.
+
+**System RAM Total** and **System RAM Used** were calculated in MiB but labelled MB, so they
+now declare MiB and the `data_size` device class. Because that device class allows unit
+conversion, an existing install keeps showing MB and Home Assistant converts the reading, so
+the figure is finally correct: on the test unit **System RAM Total** went from 114.52 MB,
+which was really MiB, to 120.08 MB. Statistics are not interrupted, but expect a one-off step
+of about 5 % in the history of those two sensors where the correction lands.
+
+Adding a new inverter now requires the device to report its serial number, or the serial to
+be typed into the **Inverter Serial Number** field. Existing entries are unaffected, and an
+entry still keyed on its IP address is re-keyed to the serial the next time it
+re-authenticates.
 - System health no longer crashes when the first config entry is disabled or retrying setup.
 - The PV sensor migration no longer re-enables sensors that the user disabled deliberately.
 - Cell voltage sensors declare their display precision explicitly instead of relying on

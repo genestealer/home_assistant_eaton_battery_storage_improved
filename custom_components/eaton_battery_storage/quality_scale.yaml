@@ -11,7 +11,11 @@ rules:
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
-  dependency-transparency: done
+  dependency-transparency:
+    status: exempt
+    comment: >-
+      The device is spoken to directly over HTTP and the integration declares no
+      requirements, so there is no third-party library to vouch for.
   docs-actions:
     status: exempt
     comment: >-
@@ -70,7 +74,12 @@ rules:
   entity-category: done
   entity-device-class: done
   entity-disabled-by-default: done
-  entity-translations: done
+  entity-translations:
+    status: todo
+    comment: >-
+      The two operation mode selects use display strings as their option values
+      rather than snake_case keys backed by strings.json. Changing them breaks
+      existing automations, so it needs a deliberate migration.
   exception-translations: done
   icon-translations:
     status: todo
