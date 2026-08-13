@@ -31,7 +31,7 @@ class EatonBatteryStorageBinarySensorEntityDescription(BinarySensorEntityDescrip
 
 
 DESCRIPTIONS = [
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="battery_charging",
         translation_key="battery_charging",
         device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
@@ -40,7 +40,7 @@ DESCRIPTIONS = [
             == "BAT_CHARGING"
         ),
     ),
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="battery_discharging",
         translation_key="battery_discharging",
         device_class=BinarySensorDeviceClass.POWER,
@@ -49,7 +49,7 @@ DESCRIPTIONS = [
             == "BAT_DISCHARGING"
         ),
     ),
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="inverter_power_state",
         translation_key="inverter_power_state",
         device_class=BinarySensorDeviceClass.POWER,
@@ -57,7 +57,7 @@ DESCRIPTIONS = [
         entity_registry_enabled_default=False,
         is_on_fn=lambda data: bool(data.get("device", {}).get("powerState")),
     ),
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="energy_saving_mode_activated",
         translation_key="energy_saving_mode_activated",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -67,7 +67,7 @@ DESCRIPTIONS = [
             .get("energySavingModeActivated")
         ),
     ),
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="bms_fault",
         translation_key="bms_fault",
         device_class=BinarySensorDeviceClass.PROBLEM,
@@ -77,7 +77,7 @@ DESCRIPTIONS = [
             data.get("technical_status", {}).get("bmsFaultCode")
         ),
     ),
-    EatonBatteryStorageBinarySensorEntityDescription(  # pylint: disable=unexpected-keyword-arg
+    EatonBatteryStorageBinarySensorEntityDescription(
         key="has_unread_notifications",
         translation_key="has_unread_notifications",
         entity_category=EntityCategory.DIAGNOSTIC,
