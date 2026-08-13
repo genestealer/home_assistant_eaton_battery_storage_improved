@@ -40,8 +40,6 @@ HOST_PATTERN = re.compile(r"^(?:\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(?::\d{1,5})?$
 # Error codes reported by the device, mapped to translation keys.
 AUTH_ERROR_CODES = {
     "10": "auth_error_locked",
-    "non_json_response": "auth_non_json_response",
-    "unexpected_response": "auth_unexpected_response",
 }
 
 
@@ -183,15 +181,16 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             serial = await _async_validate_input(self.hass, user_input, errors)
+            unique_id = serial or user_input[CONF_INVERTER_SN]
+            if not errors and not unique_id:
+                # The host is the only other candidate and it moves with DHCP,
+                # which would orphan every entity. Better to ask for a retry.
+                errors["base"] = "unknown_serial"
             if not errors:
                 host = user_input[CONF_HOST]
                 # Key the entry on the serial so a device that moves to another
                 # address updates its host instead of being added a second time.
-                await self.async_set_unique_id(
-                    serial
-                    or user_input[CONF_INVERTER_SN]
-                    or f"{host}_{user_input[CONF_USERNAME]}"
-                )
+                await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
                 return self.async_create_entry(
@@ -214,6 +213,19 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reauth when credentials expire."""
         return await self.async_step_reauth_confirm()
 
+    async def _async_check_reauth_identity(
+        self, entry: ConfigEntry, serial: str | None
+    ) -> None:
+        """Refuse a reauth that points the entry at a different inverter."""
+        if not serial or serial == entry.unique_id:
+            return
+        if entry.unique_id == entry.data[CONF_HOST]:
+            # Entries created before the serial was readable were keyed on the
+            # host; reauth is the only chance to give them a stable identity.
+            return
+        await self.async_set_unique_id(serial)
+        self._abort_if_unique_id_mismatch()
+
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -222,10 +234,13 @@ class EatonXStorageConfigFlow(ConfigFlow, domain=DOMAIN):
         reauth_entry = self._get_reauth_entry()
 
         if user_input is not None:
-            await _async_validate_input(self.hass, user_input, errors)
+            serial = await _async_validate_input(self.hass, user_input, errors)
             if not errors:
+                await self._async_check_reauth_identity(reauth_entry, serial)
                 return self.async_update_reload_and_abort(
-                    reauth_entry, data={**user_input, CONF_EMAIL: API_EMAIL}
+                    reauth_entry,
+                    unique_id=serial or reauth_entry.unique_id,
+                    data={**user_input, CONF_EMAIL: API_EMAIL},
                 )
 
         defaults = user_input or dict(reauth_entry.data)

@@ -267,30 +267,30 @@ async def test_an_auth_error_carries_the_device_code(
 
 
 @pytest.mark.parametrize(
-    ("response", "expected_code"),
+    "response",
     [
         pytest.param(
             {"json": {"successful": False}, "headers": JSON_HEADERS},
-            "unexpected_response",
             id="unexpected_payload",
         ),
-        pytest.param({"text": "<html>login</html>"}, "non_json_response", id="html"),
+        pytest.param({"text": "<html>login</html>"}, id="html"),
     ],
 )
-async def test_an_uninterpretable_sign_in_raises(
+async def test_an_uninterpretable_sign_in_is_a_connection_error(
     hass: HomeAssistant,
     aioclient_mock: AiohttpClientMocker,
     response: dict[str, Any],
-    expected_code: str,
 ) -> None:
-    """Anything that is not a token is an authentication failure."""
+    """A response the device does not explain is a reachability problem.
+
+    Raising an auth error here would send the user through reauth for what is
+    usually a reboot or a proxy in front of the inverter.
+    """
     aioclient_mock.post(f"{BASE_URL}/api/auth/signin", **response)
     api = make_api(hass)
 
-    with pytest.raises(EatonAuthError) as err:
+    with pytest.raises(EatonConnectionError):
         await api.connect()
-
-    assert err.value.err_code == expected_code
 
 
 async def test_a_customer_account_signs_in_without_a_serial(

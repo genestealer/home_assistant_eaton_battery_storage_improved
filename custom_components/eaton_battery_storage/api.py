@@ -140,8 +140,10 @@ class EatonBatteryAPI:
 
         if not is_json:
             _LOGGER.error("Non-JSON auth response (%s): %s", status, body)
-            raise EatonAuthError(
-                "non_json_response", "Authentication failed: non-JSON response"
+            # A login page or a proxy error is a reachability problem, not a
+            # rejected credential; raising an auth error would prompt reauth.
+            raise EatonConnectionError(
+                f"Sign-in returned a non-JSON response (status {status})"
             )
 
         if (
@@ -163,8 +165,8 @@ class EatonBatteryAPI:
             )
 
         _LOGGER.warning("Authentication failed: %s", body)
-        raise EatonAuthError(
-            "unexpected_response", "Authentication failed with unexpected response."
+        raise EatonConnectionError(
+            "Sign-in returned no token and no error the device explains"
         )
 
     async def store_token(self) -> None:

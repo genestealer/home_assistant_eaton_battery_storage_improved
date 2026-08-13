@@ -71,10 +71,10 @@ async def test_user_flow_falls_back_to_configured_serial(
     assert result["result"].unique_id == SERIAL
 
 
-async def test_user_flow_survives_unreadable_serial(
+async def test_user_flow_refuses_an_unknown_serial(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """A device that refuses the info request still yields a usable entry."""
+    """Without a serial there is no identity that survives a DHCP change."""
     aioclient_mock.get(f"{BASE_URL}/api/device", exc=aiohttp.ClientConnectionError())
     mock_device(aioclient_mock)
 
@@ -84,10 +84,9 @@ async def test_user_flow_survives_unreadable_serial(
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], USER_INPUT
     )
-    await hass.async_block_till_done()
 
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["result"].unique_id == f"{HOST}_user"
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown_serial"}
 
 
 @pytest.mark.usefixtures("mock_connected_device")
@@ -203,12 +202,12 @@ async def test_user_flow_rejects_invalid_host(
         ),
         pytest.param(
             {"json": {"successful": False}, "headers": JSON_HEADERS},
-            "auth_unexpected_response",
+            "cannot_connect",
             id="no_error_details",
         ),
         pytest.param(
             {"text": "<html>Gateway timeout</html>"},
-            "auth_non_json_response",
+            "cannot_connect",
             id="non_json_response",
         ),
         pytest.param(
@@ -275,6 +274,48 @@ async def test_reauth_flow(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data["password"] == "new-secret"
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_reauth_refuses_a_different_inverter(hass: HomeAssistant) -> None:
+    """Reauth must not silently re-point an entry at another device."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="SN-OTHER", data=USER_INPUT)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], USER_INPUT
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unique_id_mismatch"
+    assert entry.unique_id == "SN-OTHER"
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_reauth_rekeys_a_host_based_entry(hass: HomeAssistant) -> None:
+    """Entries the migration could not repair adopt the serial on reauth."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=HOST, data=USER_INPUT)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], USER_INPUT
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.unique_id == SERIAL
 
 
 async def test_reauth_flow_recovers_from_error(
