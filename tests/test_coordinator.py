@@ -151,4 +151,30 @@ async def test_an_expired_session_starts_a_reauth_flow(
     aioclient_mock.get(f"{BASE_URL}/api/device/status", status=401, text="")
     await trigger_refresh(hass)
 
-    assert entry.async_get_active_flows(hass, {"reauth"})
+    assert list(entry.async_get_active_flows(hass, {"reauth"}))
+
+
+async def test_an_optional_endpoint_losing_access_starts_a_reauth_flow(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A technician account downgraded to customer must not fail silently.
+
+    The required endpoints keep answering, so only the technician-only ones are
+    refused. Tolerating that would leave every technical sensor unknown with
+    nothing above debug level to explain it.
+    """
+    mock_device(aioclient_mock)
+    entry = await setup_entry(hass)
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(
+        f"{BASE_URL}/api/auth/signin",
+        json={"error": {"errCode": "3", "description": "Wrong credentials"}},
+        headers=JSON_HEADERS,
+    )
+    aioclient_mock.get(f"{BASE_URL}/api/technical/status", status=401, text="")
+    mock_device(aioclient_mock)
+    await trigger_refresh(hass)
+
+    # async_get_active_flows returns a generator, which is truthy even when empty.
+    assert list(entry.async_get_active_flows(hass, {"reauth"}))
