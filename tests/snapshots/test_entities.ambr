@@ -5015,7 +5015,7 @@
     'object_id_base': 'System CPU Usage',
     'options': dict({
       'sensor': dict({
-        'suggested_display_precision': 0,
+        'suggested_display_precision': 1,
       }),
     }),
     'original_device_class': None,
@@ -5076,7 +5076,7 @@
         'suggested_display_precision': 0,
       }),
     }),
-    'original_device_class': None,
+    'original_device_class': 'data_size',
     'original_icon': 'mdi:memory',
     'original_name': 'System RAM Total',
     'platform': 'eaton_battery_storage',
@@ -5085,16 +5085,17 @@
     'supported_features': 0,
     'translation_key': 'maintenance_diagnostics_ramusage_total',
     'unique_id': '01JEAT0NXST0RAGEH0MEZZZZZZ_maintenance_diagnostics_ramUsage_total',
-    'unit_of_measurement': 'MB',
+    'unit_of_measurement': <UnitOfInformation.MEBIBYTES: 'MiB'>,
   })
 # ---
 # name: test_all_entities[sensor][sensor.eaton_xstorage_home_system_ram_total-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'data_size',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home System RAM Total',
       <EntityStateAttribute.ICON: 'icon'>: 'mdi:memory',
       <SensorEntityCapabilityAttribute.STATE_CLASS: 'state_class'>: <SensorStateClass.MEASUREMENT: 'measurement'>,
-      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: 'MB',
+      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfInformation.MEBIBYTES: 'MiB'>,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_system_ram_total',
@@ -5134,7 +5135,7 @@
         'suggested_display_precision': 0,
       }),
     }),
-    'original_device_class': None,
+    'original_device_class': 'data_size',
     'original_icon': 'mdi:memory',
     'original_name': 'System RAM Used',
     'platform': 'eaton_battery_storage',
@@ -5143,16 +5144,17 @@
     'supported_features': 0,
     'translation_key': 'maintenance_diagnostics_ramusage_used',
     'unique_id': '01JEAT0NXST0RAGEH0MEZZZZZZ_maintenance_diagnostics_ramUsage_used',
-    'unit_of_measurement': 'MB',
+    'unit_of_measurement': <UnitOfInformation.MEBIBYTES: 'MiB'>,
   })
 # ---
 # name: test_all_entities[sensor][sensor.eaton_xstorage_home_system_ram_used-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'data_size',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home System RAM Used',
       <EntityStateAttribute.ICON: 'icon'>: 'mdi:memory',
       <SensorEntityCapabilityAttribute.STATE_CLASS: 'state_class'>: <SensorStateClass.MEASUREMENT: 'measurement'>,
-      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: 'MB',
+      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfInformation.MEBIBYTES: 'MiB'>,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_system_ram_used',
@@ -5263,7 +5265,7 @@
       'bootloader_version': None,
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home Technical Info',
       'inverter_power_rating': 3600,
-      'system_ram_total_mb': 1024.0,
+      'system_ram_total_mib': 1024.0,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_technical_info',
@@ -10350,7 +10352,7 @@
     'object_id_base': 'System CPU Usage',
     'options': dict({
       'sensor': dict({
-        'suggested_display_precision': 0,
+        'suggested_display_precision': 1,
       }),
     }),
     'original_device_class': None,
@@ -10411,7 +10413,7 @@
         'suggested_display_precision': 0,
       }),
     }),
-    'original_device_class': None,
+    'original_device_class': 'data_size',
     'original_icon': 'mdi:memory',
     'original_name': 'System RAM Total',
     'platform': 'eaton_battery_storage',
@@ -10420,16 +10422,17 @@
     'supported_features': 0,
     'translation_key': 'maintenance_diagnostics_ramusage_total',
     'unique_id': '01JEAT0NXST0RAGEH0MEZZZZZZ_maintenance_diagnostics_ramUsage_total',
-    'unit_of_measurement': 'MB',
+    'unit_of_measurement': <UnitOfInformation.MEBIBYTES: 'MiB'>,
   })
 # ---
 # name: test_all_entities_on_a_pv_install[sensor.eaton_xstorage_home_system_ram_total-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'data_size',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home System RAM Total',
       <EntityStateAttribute.ICON: 'icon'>: 'mdi:memory',
       <SensorEntityCapabilityAttribute.STATE_CLASS: 'state_class'>: <SensorStateClass.MEASUREMENT: 'measurement'>,
-      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: 'MB',
+      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfInformation.MEBIBYTES: 'MiB'>,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_system_ram_total',
@@ -10469,7 +10472,7 @@
         'suggested_display_precision': 0,
       }),
     }),
-    'original_device_class': None,
+    'original_device_class': 'data_size',
     'original_icon': 'mdi:memory',
     'original_name': 'System RAM Used',
     'platform': 'eaton_battery_storage',
@@ -10478,16 +10481,17 @@
     'supported_features': 0,
     'translation_key': 'maintenance_diagnostics_ramusage_used',
     'unique_id': '01JEAT0NXST0RAGEH0MEZZZZZZ_maintenance_diagnostics_ramUsage_used',
-    'unit_of_measurement': 'MB',
+    'unit_of_measurement': <UnitOfInformation.MEBIBYTES: 'MiB'>,
   })
 # ---
 # name: test_all_entities_on_a_pv_install[sensor.eaton_xstorage_home_system_ram_used-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'data_size',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home System RAM Used',
       <EntityStateAttribute.ICON: 'icon'>: 'mdi:memory',
       <SensorEntityCapabilityAttribute.STATE_CLASS: 'state_class'>: <SensorStateClass.MEASUREMENT: 'measurement'>,
-      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: 'MB',
+      <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfInformation.MEBIBYTES: 'MiB'>,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_system_ram_used',
@@ -10598,7 +10602,7 @@
       'bootloader_version': None,
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Eaton xStorage Home Technical Info',
       'inverter_power_rating': 3600,
-      'system_ram_total_mb': 1024.0,
+      'system_ram_total_mib': 1024.0,
     }),
     'context': <ANY>,
     'entity_id': 'sensor.eaton_xstorage_home_technical_info',

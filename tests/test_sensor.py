@@ -27,7 +27,7 @@ from .conftest import SERIAL, STATUS_RESULT, TECH_INPUT, mock_device
 async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
     """Set up a technician config entry and return it."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=2
+        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=3
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -415,7 +415,7 @@ async def test_status_values(
     ("key", "expected"),
     [
         pytest.param(
-            "maintenance_diagnostics.ramUsage.used", "1.0", id="ram_bytes_to_megabytes"
+            "maintenance_diagnostics.ramUsage.used", "1.0", id="ram_bytes_to_mebibytes"
         ),
         pytest.param(
             "maintenance_diagnostics.cpuUsage.used", "12.35", id="cpu_usage_is_rounded"
@@ -439,3 +439,46 @@ async def test_maintenance_diagnostics_values(
     entry = await setup_entry(hass)
 
     assert sensor_state(hass, entry, key) == expected
+
+
+async def test_a_malformed_notification_does_not_break_the_sensor(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The device has been seen listing a bare string among the notifications.
+
+    Reading that as a notification raises while the state is being written,
+    which takes the whole entity down rather than just the one bad entry.
+    """
+    mock_device(
+        aioclient_mock,
+        notifications={"total": 2, "results": ["junk", {"alertId": "a1"}]},
+    )
+    entry = await setup_entry(hass)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, f"{entry.entry_id}_notifications"
+    )
+    state = hass.states.get(entity_id)
+
+    assert state.state == "2"
+    assert [item["alert_id"] for item in state.attributes["notifications"]] == ["a1"]
+
+
+async def test_a_non_numeric_reading_leaves_the_sensor_unknown(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The device answers "n/a" for readings it cannot take.
+
+    Home Assistant refuses to add a numeric sensor holding that, so without a
+    guard the entity is missing entirely rather than merely having no value.
+    """
+    mock_device(aioclient_mock, technical_status={"bmsHighestCellVoltage": "n/a"})
+    entry = await setup_entry(hass)
+
+    key = "technical_status.bmsHighestCellVoltage"
+    entity_id = er.async_get(hass).async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, sensor_unique_id(entry.entry_id, key)
+    )
+
+    assert entity_id is not None
+    assert hass.states.get(entity_id).state == STATE_UNKNOWN

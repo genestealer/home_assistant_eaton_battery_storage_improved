@@ -33,6 +33,7 @@ from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
     UnitOfEnergy,
+    UnitOfInformation,
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
@@ -130,6 +131,21 @@ def _format_fault_codes(value: Any) -> Any:
     )
 
 
+def _is_number(value: str) -> bool:
+    """Return True when a string reading can be used as a number."""
+    try:
+        float(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _notification_results(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the notifications the device listed, ignoring malformed entries."""
+    results = data.get("notifications", {}).get("results", [])
+    return [item for item in results if isinstance(item, dict)]
+
+
 def _cell_voltage_delta(technical_status: dict[str, Any]) -> float | None:
     """Return the spread between the highest and lowest cell voltage."""
     highest = technical_status.get("bmsHighestCellVoltage")
@@ -143,11 +159,12 @@ def _cell_voltage_delta(technical_status: dict[str, Any]) -> float | None:
     try:
         highest, lowest = float(highest), float(lowest)
     except (TypeError, ValueError):
-        _LOGGER.error("Cell voltages are not numeric: %s and %s", highest, lowest)
+        # The device reports "n/a" for a reading it cannot take, every poll.
+        _LOGGER.debug("Cell voltages are not numeric: %s and %s", highest, lowest)
         return None
 
     if min(highest, lowest) < MIN_CELL_VOLTAGE_MV:
-        _LOGGER.error(
+        _LOGGER.debug(
             "Cell voltage below %smV, delta not calculated: %s and %s",
             MIN_CELL_VOLTAGE_MV,
             highest,
@@ -176,13 +193,15 @@ def _translation_key_from_key(key: str) -> str:
     return key.replace(".", "_").replace("-", "_").lower()
 
 
-# Every device class Home Assistant accepts a state class for, per its own
-# DEVICE_CLASS_STATE_CLASSES. Sensors carrying a device class not listed here,
-# and sensors with none at all, need an explicit "state_class" in SENSOR_TYPES.
+# Every device class Home Assistant accepts a state class for. Core maps each
+# device class to the set of state classes it permits; this picks one default
+# per class. Sensors with a device class not listed here, and sensors with none
+# at all, need an explicit "state_class" in SENSOR_TYPES.
 DEVICE_CLASS_STATE_CLASSES: dict[str, SensorStateClass] = {
     "apparent_power": SensorStateClass.MEASUREMENT,
     "battery": SensorStateClass.MEASUREMENT,
     "current": SensorStateClass.MEASUREMENT,
+    "data_size": SensorStateClass.MEASUREMENT,
     "energy": SensorStateClass.TOTAL_INCREASING,
     "energy_storage": SensorStateClass.MEASUREMENT,
     "frequency": SensorStateClass.MEASUREMENT,
@@ -855,16 +874,16 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
     # maintenance diagnostics endpoint - requires technician account
     "maintenance_diagnostics.ramUsage.total": {
         "name": "System RAM Total",
-        "unit": "MB",
-        "device_class": None,
+        "unit": UnitOfInformation.MEBIBYTES,
+        "device_class": "data_size",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:memory",
     },
     "maintenance_diagnostics.ramUsage.used": {
         "name": "System RAM Used",
-        "unit": "MB",
-        "device_class": None,
+        "unit": UnitOfInformation.MEBIBYTES,
+        "device_class": "data_size",
         "entity_category": EntityCategory.DIAGNOSTIC,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:memory",
@@ -929,7 +948,7 @@ async def async_setup_entry(
         if key in TECHNICIAN_ONLY_SENSORS and not is_technician:
             continue
 
-        entities.append(EatonXStorageSensor(coordinator, key, description, has_pv))
+        entities.append(EatonXStorageSensor(coordinator, key, description))
 
     # Add the notifications array sensor
     entities.append(EatonXStorageNotificationsSensor(coordinator))
@@ -953,6 +972,7 @@ class EatonXStorageNotificationsSensor(EatonEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "notifications"
+    _unrecorded_attributes = frozenset({"notifications", "start", "size"})
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the notifications sensor."""
@@ -960,47 +980,36 @@ class EatonXStorageNotificationsSensor(EatonEntity, SensorEntity):
         # Scope unique ID to config entry for multi-device support
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_notifications"
 
+    def _notifications(self) -> dict[str, Any]:
+        """Return the notifications section of the coordinator data."""
+        return (self.coordinator.data or {}).get("notifications", {})
+
     @property
     def native_value(self) -> int:
         """Return the total number of notifications as the state."""
-        try:
-            notifications_data = self.coordinator.data.get("notifications", {})
-            return notifications_data.get("total", 0)
-        except (KeyError, TypeError, AttributeError) as err:
-            _LOGGER.error("Error retrieving notifications state: %s", err)
-            return 0
+        return self._notifications().get("total", 0)
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return notifications as attributes."""
-        try:
-            notifications_data = self.coordinator.data.get("notifications", {})
-            results = notifications_data.get("results", [])
-
-            # Format notifications for better readability
-            formatted_notifications = []
-            for notification in results:
-                formatted_notifications.append(
-                    {
-                        "alert_id": notification.get("alertId"),
-                        "level": notification.get("level"),
-                        "type": notification.get("type"),
-                        "sub_type": notification.get("subType"),
-                        "status": notification.get("status"),
-                        "created_at": notification.get("createdAt"),
-                        "updated_at": notification.get("updatedAt"),
-                    }
-                )
-
-            return {
-                "notifications": formatted_notifications,
-                "total": notifications_data.get("total", 0),
-                "start": notifications_data.get("start", 0),
-                "size": notifications_data.get("size", 0),
-            }
-        except (KeyError, TypeError, AttributeError) as e:
-            _LOGGER.error("Error retrieving notifications attributes: %s", e)
-            return {}
+        notifications_data = self._notifications()
+        return {
+            "notifications": [
+                {
+                    "alert_id": notification.get("alertId"),
+                    "level": notification.get("level"),
+                    "type": notification.get("type"),
+                    "sub_type": notification.get("subType"),
+                    "status": notification.get("status"),
+                    "created_at": notification.get("createdAt"),
+                    "updated_at": notification.get("updatedAt"),
+                }
+                for notification in _notification_results(self.coordinator.data or {})
+            ],
+            "total": notifications_data.get("total", 0),
+            "start": notifications_data.get("start", 0),
+            "size": notifications_data.get("size", 0),
+        }
 
 
 class EatonXStorageLatestNotificationSensor(EatonEntity, SensorEntity):
@@ -1018,48 +1027,39 @@ class EatonXStorageLatestNotificationSensor(EatonEntity, SensorEntity):
 
     def _latest_notification(self) -> dict[str, Any] | None:
         """Return the most recent notification, if any."""
-        notifications_data = self.coordinator.data.get("notifications", {})
-        results = notifications_data.get("results", [])
+        results = _notification_results(self.coordinator.data or {})
         return results[0] if results else None
 
     @property
     def native_value(self) -> str | None:
         """Return the most recent notification's description as the state."""
-        try:
-            notification = self._latest_notification()
-            if not notification:
-                return None
-            sub_type = notification.get("subType") or notification.get("type")
-            if not sub_type:
-                return None
-            mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type)
-            return mapped["description"] if mapped else sub_type
-        except (KeyError, TypeError, AttributeError) as err:
-            _LOGGER.error("Error retrieving latest notification state: %s", err)
+        notification = self._latest_notification()
+        if not notification:
             return None
+        sub_type = notification.get("subType") or notification.get("type")
+        if not sub_type:
+            return None
+        mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type)
+        return mapped["description"] if mapped else sub_type
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return the remaining notification details as attributes."""
-        try:
-            notification = self._latest_notification()
-            if not notification:
-                return None
-            sub_type = notification.get("subType")
-            mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type or "", {})
-            return {
-                "raw_sub_type": sub_type,
-                "remedy": mapped.get("remedy"),
-                "alert_id": notification.get("alertId"),
-                "level": notification.get("level"),
-                "type": notification.get("type"),
-                "status": notification.get("status"),
-                "created_at": notification.get("createdAt"),
-                "updated_at": notification.get("updatedAt"),
-            }
-        except (KeyError, TypeError, AttributeError) as err:
-            _LOGGER.error("Error retrieving latest notification attributes: %s", err)
+        notification = self._latest_notification()
+        if not notification:
             return None
+        sub_type = notification.get("subType")
+        mapped = NOTIFICATION_SUBTYPE_MAP.get(sub_type or "", {})
+        return {
+            "raw_sub_type": sub_type,
+            "remedy": mapped.get("remedy"),
+            "alert_id": notification.get("alertId"),
+            "level": notification.get("level"),
+            "type": notification.get("type"),
+            "status": notification.get("status"),
+            "created_at": notification.get("createdAt"),
+            "updated_at": notification.get("updatedAt"),
+        }
 
 
 class EatonXStorageInverterInfoSensor(EatonEntity, SensorEntity):
@@ -1067,6 +1067,7 @@ class EatonXStorageInverterInfoSensor(EatonEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "inverter_info"
+    _unrecorded_attributes = frozenset({"va_rating", "nominal_vpv"})
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator, has_pv: bool) -> None:
         """Initialize the inverter info sensor."""
@@ -1095,6 +1096,7 @@ class EatonXStorageBmsInfoSensor(EatonEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "bms_info"
+    _unrecorded_attributes = frozenset({"serial_number", "capacity_kwh"})
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the BMS info sensor."""
@@ -1122,6 +1124,7 @@ class EatonXStorageDeviceInfoSensor(EatonEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "device_info"
+    _unrecorded_attributes = frozenset({"local_portal_remote_id", "timezone"})
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the device info sensor."""
@@ -1149,6 +1152,9 @@ class EatonXStorageTechnicalInfoSensor(EatonEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "technical_info"
+    _unrecorded_attributes = frozenset(
+        {"inverter_power_rating", "bootloader_version", "system_ram_total_mib"}
+    )
 
     def __init__(self, coordinator: EatonXstorageHomeCoordinator) -> None:
         """Initialize the technical info sensor."""
@@ -1172,7 +1178,7 @@ class EatonXStorageTechnicalInfoSensor(EatonEntity, SensorEntity):
         return {
             "inverter_power_rating": technical_status.get("inverterPowerRating"),
             "bootloader_version": technical_status.get("invBootloaderVersion"),
-            "system_ram_total_mb": (
+            "system_ram_total_mib": (
                 round(ram_total / 1024 / 1024, 2) if ram_total is not None else None
             ),
         }
@@ -1186,7 +1192,6 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         coordinator: EatonXstorageHomeCoordinator,
         key: str,
         description: dict[str, Any],
-        _has_pv: bool,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -1210,10 +1215,17 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
 
         # An explicit state_class wins, including an explicit None for setpoints
         # and static ratings that would otherwise be recorded as statistics.
+        device_class = description["device_class"]
         if "state_class" in description:
-            self._attr_state_class = description["state_class"]
-        elif (device_class := description["device_class"]) is not None:
-            self._attr_state_class = DEVICE_CLASS_STATE_CLASSES.get(device_class)
+            state_class = description["state_class"]
+        elif device_class is not None:
+            state_class = DEVICE_CLASS_STATE_CLASSES.get(device_class)
+        else:
+            state_class = None
+        self._attr_state_class = state_class
+
+        # Declaring any of these commits the sensor to a numeric state.
+        self._numeric = any((description.get("unit"), state_class, device_class))
 
     @property
     def native_value(self) -> str | int | float | None:
@@ -1234,12 +1246,21 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         if value is None:
             return None
 
+        if self._numeric and isinstance(value, str) and not _is_number(value):
+            # The device answers "n/a" for readings it cannot take. Home
+            # Assistant refuses to add a numeric sensor holding that, so the
+            # entity would never appear at all.
+            _LOGGER.debug(
+                "Sensor %s returned the non-numeric reading %r", self._key, value
+            )
+            return None
+
         if (
             self._key in CELL_VOLTAGE_KEYS
             and isinstance(value, (int, float))
             and value < MIN_CELL_VOLTAGE_MV
         ):
-            _LOGGER.error(
+            _LOGGER.debug(
                 "Cell voltage %s below %smV, treating as a read error: %smV",
                 self._key,
                 MIN_CELL_VOLTAGE_MV,
@@ -1303,8 +1324,11 @@ class EatonXStorageSensor(EatonEntity, SensorEntity):
         # Apparent power (VA): 0 decimal places
         if (
             self._attr_device_class == "apparent_power"
-            or self._attr_native_unit_of_measurement == PERCENTAGE
             or "ramUsage" in self._key
+            or (
+                self._attr_native_unit_of_measurement == PERCENTAGE
+                and "cpuUsage" not in self._key
+            )
         ):
             return 0
         # CPU usage: 1 decimal place
