@@ -6,7 +6,7 @@ client, coordinator and entity platforms.
 
 from collections.abc import Generator
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
@@ -89,9 +89,14 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
 @pytest.fixture
 def entity_registry_enabled_by_default() -> Generator[None]:
-    """Register entities that are disabled by default as enabled."""
+    """Register entities that are disabled by default as enabled.
+
+    Core ships this fixture in tests/components/conftest.py, which is not part
+    of pytest-homeassistant-custom-component, so custom integrations need it.
+    """
     with patch(
         "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
+        new_callable=PropertyMock,
         return_value=True,
     ):
         yield

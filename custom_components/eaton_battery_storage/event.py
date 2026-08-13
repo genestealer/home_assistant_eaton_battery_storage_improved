@@ -50,9 +50,17 @@ class EatonXStorageNotificationEvent(EatonEntity, EventEntity):
             f"{coordinator.config_entry.entry_id}_notifications_event"
         )
         self._seen: deque[str] = deque(maxlen=SEEN_ALERTS_LIMIT)
+        self._seen_ids: set[str] = set()
         self._primed = False
         # Keep track of the last emitted event type to expose a friendly state
         self._last_event_type: str | None = None
+
+    def _remember(self, alert_id: str) -> None:
+        """Record an alert as seen, evicting the oldest once the cap is hit."""
+        if len(self._seen) == SEEN_ALERTS_LIMIT:
+            self._seen_ids.discard(self._seen[0])
+        self._seen.append(alert_id)
+        self._seen_ids.add(alert_id)
 
     def _extract_alerts(self) -> list[dict[str, Any]]:
         """Extract alerts from coordinator data."""
@@ -66,28 +74,20 @@ class EatonXStorageNotificationEvent(EatonEntity, EventEntity):
         await super().async_added_to_hass()
         # Prime seen set on first add to avoid a burst of historical events
         for alert in self._extract_alerts():
-            self._seen.append(_alert_id(alert))
+            self._remember(_alert_id(alert))
         self._primed = True
 
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator update."""
-        # On each data refresh, emit events for new unseen alerts
-        try:
-            for alert in self._extract_alerts():
-                aid = _alert_id(alert)
-                if aid in self._seen:
-                    continue
-                self._seen.append(aid)
-                if self._primed:
-                    # Emit event with full alert payload in "event_data"
-                    self._trigger_event("notification", {"alert": alert})
-                    # Update the visible state to the last event type
-                    self._last_event_type = "notification"
-        except (KeyError, TypeError, AttributeError) as e:
-            _LOGGER.error("Error processing notifications for events: %s", e)
-        finally:
-            # Ensure the entity state is updated in HA
-            super()._handle_coordinator_update()
+        for alert in self._extract_alerts():
+            aid = _alert_id(alert)
+            if aid in self._seen_ids:
+                continue
+            self._remember(aid)
+            if self._primed:
+                self._trigger_event("notification", {"alert": alert})
+                self._last_event_type = "notification"
+        super()._handle_coordinator_update()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
