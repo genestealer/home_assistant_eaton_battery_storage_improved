@@ -52,7 +52,7 @@ jobs:
         run: mypy custom_components/eaton_battery_storage
 
       - name: Pytest
-        run: pytest tests --cov=custom_components.eaton_battery_storage --cov-report=term-missing
+        run: pytest tests --cov=custom_components.eaton_battery_storage --cov-report=term-missing --cov-fail-under=98
 
   release:
     name: Create Release Zip

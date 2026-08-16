@@ -4,7 +4,10 @@ import pytest
 from homeassistant.components.diagnostics import REDACTED
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    get_system_health_info,
+)
 from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
@@ -52,9 +55,10 @@ async def test_diagnostics_redact_credentials_and_serial(
 @pytest.mark.usefixtures("mock_connected_device")
 async def test_system_health_reports_a_loaded_entry(hass: HomeAssistant) -> None:
     """System health reports the reachability of a loaded entry."""
+    assert await async_setup_component(hass, "system_health", {})
     await setup_entry(hass)
 
-    info = await system_health_info(hass)
+    info = await get_system_health_info(hass, DOMAIN)
 
     assert info["device_reachable"] is True
     assert info["api_host"] == USER_INPUT["host"]

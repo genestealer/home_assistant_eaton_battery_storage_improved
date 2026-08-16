@@ -120,3 +120,27 @@ async def test_power_switch_accepts_a_json_empty_string(
     assert last_payload(aioclient_mock, "POST", "/api/device/power") == {
         "parameters": {"state": False}
     }
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_power_switch_reports_a_rejected_command(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A refused power command surfaces an error and drops the optimistic state."""
+    aioclient_mock.post(
+        f"{BASE_URL}/api/device/power",
+        status=500,
+        json={"error": "nope"},
+        headers=JSON_HEADERS,
+    )
+    await setup_entry(hass)
+
+    with pytest.raises(HomeAssistantError, match="Failed to change the inverter power"):
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_OFF,
+            {ATTR_ENTITY_ID: POWER_ENTITY_ID},
+            blocking=True,
+        )
+
+    assert hass.states.get(POWER_ENTITY_ID).state == STATE_ON
