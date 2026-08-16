@@ -15,7 +15,7 @@ from syrupy.assertion import SnapshotAssertion
 
 from custom_components.eaton_battery_storage.const import CONF_HAS_PV, DOMAIN
 
-from .conftest import ENTRY_ID, MINOR_VERSION, SERIAL, TECH_INPUT, mock_device
+from .conftest import ENTRY_ID, MINOR_VERSION, SERIAL, TECH_INPUT, VERSION, mock_device
 
 TECHNICAL_STATUS = {
     "operationMode": "MAXIMIZE_AUTO_CONSUMPTION",
@@ -81,6 +81,7 @@ async def test_all_entities(
         entry_id=ENTRY_ID,
         unique_id=SERIAL,
         data=TECH_INPUT,
+        version=VERSION,
         minor_version=MINOR_VERSION,
     )
     entry.add_to_hass(hass)
@@ -110,6 +111,7 @@ async def test_all_entities_on_a_pv_install(
         entry_id=ENTRY_ID,
         unique_id=SERIAL,
         data={**TECH_INPUT, CONF_HAS_PV: True},
+        version=VERSION,
         minor_version=MINOR_VERSION,
     )
     entry.add_to_hass(hass)

@@ -27,6 +27,7 @@ from .conftest import (
     MINOR_VERSION,
     SERIAL,
     USER_INPUT,
+    VERSION,
     mock_device,
 )
 
@@ -58,7 +59,11 @@ async def reconfigure(
 async def test_setup_and_unload(hass: HomeAssistant) -> None:
     """The entry sets up its platforms and unloads cleanly."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
 
@@ -74,7 +79,11 @@ async def test_setup_and_unload(hass: HomeAssistant) -> None:
 async def test_device_is_keyed_on_the_serial(hass: HomeAssistant) -> None:
     """The device registry entry never carries a host based identifier."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
 
@@ -113,7 +122,11 @@ async def test_setup_failures(
     """Authentication and connectivity failures are reported differently."""
     aioclient_mock.post(f"{BASE_URL}/api/auth/signin", **signin_response)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
 
@@ -131,7 +144,11 @@ async def test_setup_retries_when_the_device_returns_no_status(
     )
     mock_device(aioclient_mock)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
 
@@ -151,7 +168,28 @@ async def test_migrate_entry_rekeys_unique_id(hass: HomeAssistant) -> None:
     await setup_entry(hass, entry)
 
     assert entry.unique_id == SERIAL
-    assert entry.minor_version == MINOR_VERSION
+    assert (entry.version, entry.minor_version) == (VERSION, MINOR_VERSION)
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_migrate_entry_from_any_minor_version(hass: HomeAssistant) -> None:
+    """Version 1 is migrated whatever its minor version.
+
+    A serial the earlier scheme had already re-keyed to must survive, so the
+    migration cannot assume it is looking at an untouched unique ID.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=1,
+        minor_version=2,
+    )
+    await setup_entry(hass, entry)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.unique_id == SERIAL
+    assert (entry.version, entry.minor_version) == (VERSION, MINOR_VERSION)
 
 
 @pytest.mark.usefixtures("mock_connected_device")
@@ -184,7 +222,11 @@ async def test_migrate_entry_drops_host_device_identifier(
 async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
     """Turning the PV option off hides the sensors it created, and back on restores them."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=PV_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
     entity_registry = er.async_get(hass)
@@ -209,7 +251,11 @@ async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
 async def test_a_user_disabled_pv_sensor_is_left_alone(hass: HomeAssistant) -> None:
     """A deliberate user choice must survive the PV migration."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=PV_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=PV_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
     entity_registry = er.async_get(hass)
@@ -234,7 +280,11 @@ async def test_removing_the_entry_deletes_the_stored_token(
 ) -> None:
     """The device credentials must not outlive the config entry."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
     store_key = token_store_key(entry.entry_id)
@@ -250,7 +300,11 @@ async def test_removing_the_entry_deletes_the_stored_token(
 async def test_the_reload_service_repolls_the_device(hass: HomeAssistant) -> None:
     """Reloading tears the entry down and sets it back up against the device."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
     coordinator = entry.runtime_data
@@ -269,7 +323,11 @@ async def test_every_registered_service_is_described(
 ) -> None:
     """A service missing from services.yaml makes Home Assistant log an error."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=USER_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     await setup_entry(hass, entry)
 

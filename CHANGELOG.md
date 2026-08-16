@@ -9,6 +9,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08-01.md)
 and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 
+### Breaking changes
+
+Everything in this release that needs something from you. The statistics clean-up is
+described under [Upgrading](#upgrading).
+
+- **The config entry format moves to version 2.** Existing entries migrate automatically on
+  the first start, which re-keys them onto the inverter serial number and drops the
+  host-based device identifier. Because Home Assistant refuses to load a config entry newer
+  than the integration reading it, **downgrading to 0.3.x afterwards will not work**: the
+  entry would have to be deleted and added again.
+- **Settings have moved from Configure to Reconfigure.** Connection settings were edited
+  through an options flow, which is not what an options flow is for. The entry's **Configure**
+  button is replaced by **Reconfigure** in the ⋮ menu. Same form, same fields. Reconfiguring
+  now also refuses a device whose serial number does not match the entry.
+- **The operation mode select values changed.** `Basic Mode` → `basic_mode`,
+  `Maximize Auto Consumption` → `maximize_auto_consumption`, `Variable Grid Injection` →
+  `variable_grid_injection`, `Frequency Regulation` → `frequency_regulation`, `Peak Shaving`
+  → `peak_shaving`, `Manual Charge` → `manual_charge`, `Manual Discharge` →
+  `manual_discharge`. Update anything that calls `select.select_option` on **Default
+  operation mode** or **Current operation mode**, and any template, condition or trigger
+  comparing their state. The dropdown reads the same in the UI, because the labels are now
+  translations rather than the values themselves.
+- **Several sensors now report readable text instead of the raw API string.** The energy flow
+  role sensors (**Grid Role**, **AC PV Role**, **DC PV Role**, **Critical Load Role**,
+  **Non-Critical Load Role**) read Producing, Consuming, Disconnected or Idle instead of
+  `PRODUCER`, `CONSUMER`, `DISCONNECTED` and `NONE`. **Operation Mode**, **Current Mode
+  Recurrence** and **Current Mode Type** gained the values the device reports but the API
+  documentation omits. Anything matching on the raw strings needs updating.
+- **Sensor units were corrected, which invalidates their statistics.** **Self Consumption**
+  (W → %), **BMS Total Charge** and **BMS Total Discharge** (kWh → Ah), and **Today's Grid
+  Consumption**, **Today's PV Production** and their 30-day counterparts (W → Wh). The two
+  30-day sensors are a rolling window rather than a total, so they no longer carry a state
+  class and stop producing long-term statistics.
+- **System RAM Total** and **System RAM Used** changed unit from MB to MiB and gained the
+  `data_size` device class. The reading was always calculated in MiB, so the old label was
+  simply wrong; expect a one-off step of about 5 % where the correction lands.
+- **The `system_ram_total_mb` attribute is renamed `system_ram_total_mib`** on the
+  **Technical Info** sensor. Templates reading it by name need updating.
+- **Grid Frequency now reports `0` during a grid outage** rather than going unknown. Anything
+  treating unknown as the outage signal should compare against 0 instead.
+- **Adding an inverter now requires its serial number.** If the device does not report one,
+  type it into **Inverter Serial Number**. The old fallback keyed the entry on the IP
+  address, which a DHCP change would orphan. Existing entries are unaffected.
+- **Re-authentication refuses a different inverter.** It used to accept any device and keep
+  the original identity, silently continuing one inverter's history with another's readings.
+  An entry still keyed on its IP address adopts the serial at the next re-authentication.
+
 ### Added
 
 - **Verify SSL certificate** option in the config, reauth and options flows. It defaults to
@@ -77,12 +124,6 @@ and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 - `PARALLEL_UPDATES` is declared on every platform: `0` for the read-only ones, `1` for the
   command platforms.
 - Password fields are no longer prefilled in the reauth and options forms.
-- Connection settings are changed through a reconfigure flow rather than an options flow.
-  They were always written to the entry data rather than to its options, so the options flow
-  was only ever a reconfigure flow with the wrong name and the wrong abort reason. The entry
-  no longer registers a config entry update listener either: the reconfigure and reauth steps
-  schedule their own reload, and Home Assistant warns that combining the two breaks in
-  2026.12.
 - Connection settings are changed through a reconfigure flow rather than an options flow.
   They were always written to the entry data rather than to its options, so the options flow
   was only ever a reconfigure flow with the wrong name and the wrong abort reason. The entry

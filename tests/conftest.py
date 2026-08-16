@@ -24,6 +24,7 @@ JSON_HEADERS = {"Content-Type": "application/json"}
 # Entity unique IDs embed the entry ID, so it is pinned for stable snapshots.
 ENTRY_ID = "01JEAT0NXST0RAGEH0MEZZZZZZ"
 # Taken from the flow so an entry a test builds is one the flow could create.
+VERSION = EatonXStorageConfigFlow.VERSION
 MINOR_VERSION = EatonXStorageConfigFlow.MINOR_VERSION
 
 USER_INPUT = {

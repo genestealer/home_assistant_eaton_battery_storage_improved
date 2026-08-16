@@ -21,6 +21,7 @@ from .conftest import (
     SERIAL,
     TECH_INPUT,
     USER_INPUT,
+    VERSION,
     mock_device,
 )
 
@@ -54,7 +55,10 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["data"] == {**USER_INPUT, "email": "anything@anything.com"}
     assert result["result"].unique_id == SERIAL
     # Anything older than this has to be handled by async_migrate_entry.
-    assert result["result"].minor_version == MINOR_VERSION
+    assert (result["result"].version, result["result"].minor_version) == (
+        VERSION,
+        MINOR_VERSION,
+    )
 
 
 async def test_user_flow_falls_back_to_configured_serial(

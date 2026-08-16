@@ -123,10 +123,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: EatonConfigEntry) -> boo
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate an old config entry to the current identity scheme."""
-    if entry.version > 1:
+    if entry.version > 2:
         return False
 
-    if entry.minor_version < 2:
+    if entry.version == 1:
         host = entry.data[CONF_HOST]
         unique_id = entry.unique_id
 
@@ -135,11 +135,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if unique_id and unique_id.startswith(f"{host}_"):
             unique_id = unique_id.removeprefix(f"{host}_")
         elif unique_id == host:
-            # Nothing better is available offline; the host stays until reauth.
+            # Nothing better is available offline; the host stays until a reauth
+            # or reconfigure reads the serial from the device.
             _LOGGER.debug("Config entry unique ID has no serial to migrate to")
 
         hass.config_entries.async_update_entry(
-            entry, unique_id=unique_id, minor_version=2
+            entry, unique_id=unique_id, version=2, minor_version=1
         )
         _async_migrate_device_identifiers(hass, entry, host)
 

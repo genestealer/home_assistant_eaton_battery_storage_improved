@@ -14,7 +14,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.eaton_battery_storage.const import DOMAIN
 
-from .conftest import MINOR_VERSION, SERIAL, TECH_INPUT, mock_device
+from .conftest import MINOR_VERSION, SERIAL, TECH_INPUT, VERSION, mock_device
 
 EVENT_ENTITY_ID = "event.eaton_xstorage_home_notifications_event"
 PAST_THE_UPDATE_INTERVAL = timedelta(minutes=1, seconds=1)
@@ -34,7 +34,11 @@ async def setup_entry(
     """Set up a config entry against a device serving the given payloads."""
     mock_device(aioclient_mock, **payloads)
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=TECH_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

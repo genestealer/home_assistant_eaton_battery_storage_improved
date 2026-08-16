@@ -31,6 +31,7 @@ from .conftest import (
     SERIAL,
     SETTINGS_RESULT,
     TECH_INPUT,
+    VERSION,
     mock_device,
     mock_settings,
 )
@@ -55,7 +56,11 @@ COMMAND_ACCEPTED = {
 async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
     """Set up a config entry and return it."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=TECH_INPUT, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=TECH_INPUT,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

@@ -24,6 +24,7 @@ from .conftest import (
     STATUS_RESULT,
     TECH_INPUT,
     USER_INPUT,
+    VERSION,
     mock_device,
 )
 
@@ -37,7 +38,11 @@ async def setup_entry(
 ) -> MockConfigEntry:
     """Set up a config entry and return it."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=SERIAL, data=data, minor_version=MINOR_VERSION
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=data,
+        version=VERSION,
+        minor_version=MINOR_VERSION,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
