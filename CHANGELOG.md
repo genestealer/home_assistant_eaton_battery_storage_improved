@@ -54,6 +54,10 @@ described under [Upgrading](#upgrading).
   **Technical Info** sensor. Templates reading it by name need updating.
 - **Grid Frequency now reports `0` during a grid outage** rather than going unknown. Anything
   treating unknown as the outage signal should compare against 0 instead.
+- **The `created_at` and `updated_at` attributes on Notifications and Latest Notification are
+  now timestamps.** The device reports these in milliseconds, and the raw integer was passed
+  straight through, so anything reading them had to divide by 1000 before converting. They
+  are now datetimes; a template doing its own conversion needs updating.
 - **Adding an inverter now requires its serial number.** If the device does not report one,
   type it into **Inverter Serial Number**. The old fallback keyed the entry on the IP
   address, which a DHCP change would orphan. Existing entries are unaffected.

@@ -1,5 +1,6 @@
 """Tests for the value handling of the Eaton xStorage Home sensor platform."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -473,6 +474,58 @@ async def test_a_malformed_notification_does_not_break_the_sensor(
 
     assert state.state == "2"
     assert [item["alert_id"] for item in state.attributes["notifications"]] == ["a1"]
+
+
+@pytest.mark.parametrize("unique_id_suffix", ["notifications", "latest_notification"])
+async def test_notification_times_are_read_as_milliseconds(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    unique_id_suffix: str,
+) -> None:
+    """Notification records timestamp in milliseconds, unlike the device record."""
+    mock_device(
+        aioclient_mock,
+        notifications={
+            "total": 1,
+            "results": [
+                {
+                    "alertId": "a1",
+                    "subType": "NO_UTILITY",
+                    "createdAt": 1786919563000,
+                    "updatedAt": 1786919563000,
+                }
+            ],
+        },
+    )
+    entry = await setup_entry(hass)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, f"{entry.entry_id}_{unique_id_suffix}"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    if unique_id_suffix == "notifications":
+        attributes = attributes["notifications"][0]
+
+    expected = datetime(2026, 8, 16, 22, 32, 43, tzinfo=UTC)
+    assert attributes["created_at"] == expected
+    assert attributes["updated_at"] == expected
+
+
+async def test_a_notification_without_times_reports_none(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A record missing its timestamps must not be read as 1970."""
+    mock_device(
+        aioclient_mock,
+        notifications={"total": 1, "results": [{"alertId": "a1"}]},
+    )
+    entry = await setup_entry(hass)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, f"{entry.entry_id}_latest_notification"
+    )
+
+    assert hass.states.get(entity_id).attributes["created_at"] is None
 
 
 async def test_a_non_numeric_reading_leaves_the_sensor_unknown(

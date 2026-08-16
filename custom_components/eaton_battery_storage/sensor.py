@@ -26,6 +26,7 @@ Sensors with accuracy issues are marked with accuracy_warning=True in SENSOR_TYP
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -48,6 +49,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ACCOUNT_TYPE_TECHNICIAN,
@@ -158,6 +160,13 @@ def _notification_results(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the notifications the device listed, ignoring malformed entries."""
     results = data.get("notifications", {}).get("results", [])
     return [item for item in results if isinstance(item, dict)]
+
+
+def _notification_time(value: Any) -> datetime | None:
+    """Return a notification timestamp, which the device reports in milliseconds."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return dt_util.utc_from_timestamp(value / 1000)
 
 
 def _cell_voltage_delta(technical_status: dict[str, Any]) -> float | None:
@@ -957,8 +966,8 @@ class EatonXStorageNotificationsSensor(EatonEntity, SensorEntity):
                     "type": notification.get("type"),
                     "sub_type": notification.get("subType"),
                     "status": notification.get("status"),
-                    "created_at": notification.get("createdAt"),
-                    "updated_at": notification.get("updatedAt"),
+                    "created_at": _notification_time(notification.get("createdAt")),
+                    "updated_at": _notification_time(notification.get("updatedAt")),
                 }
                 for notification in _notification_results(self.coordinator.data or {})
             ],
@@ -1013,8 +1022,8 @@ class EatonXStorageLatestNotificationSensor(EatonEntity, SensorEntity):
             "level": notification.get("level"),
             "type": notification.get("type"),
             "status": notification.get("status"),
-            "created_at": notification.get("createdAt"),
-            "updated_at": notification.get("updatedAt"),
+            "created_at": _notification_time(notification.get("createdAt")),
+            "updated_at": _notification_time(notification.get("updatedAt")),
         }
 
 
