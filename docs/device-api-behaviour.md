@@ -60,6 +60,22 @@ settings back after writing them returns identical values with a fresh `id`,
 whether a write changed anything. Nested records the write did not touch, such
 as `defaultMode`, keep their own original identifier and timestamps.
 
+## Record timestamps are seconds in some places and milliseconds in others
+
+`createdAt` and `updatedAt` do not carry the same unit everywhere:
+
+| Record | Unit | Example |
+| --- | --- | --- |
+| `GET /api/device`, `GET /api/settings`, `GET /api/device/maintenance/diagnostics` | seconds | `1786919104` |
+| `status.currentMode`, the result of `POST /api/device/command`, notification records | milliseconds | `1786919563000` |
+
+Both refer to the same instant, so the digit count is the only way to tell them
+apart. The integration passes the notification values through untouched as the
+`created_at` and `updated_at` attributes, which are therefore milliseconds.
+
+`startTime` and `endTime` on a mode record are neither: they are HHMM integers,
+so a mode running from 23:32 to 03:32 reads `2332` and `332`.
+
 ## The inverter power rating can be zero
 
 `technical_status.inverterPowerRating` reads `0` on this unit, while
@@ -176,8 +192,3 @@ one, but it still replaces the running session, so avoid it mid-charge.
 
 `temp/probe_units.py` collects the readings behind the two unit sections above.
 It only issues GETs, so it is safe to run at any time.
-
-The rejection statuses and the settings-record behaviour were probed the same
-way on 2026-08-16, against the same unit. Both are safe to repeat: the
-rejections change nothing because the device refuses them, and the settings
-probe writes the document back exactly as it was read.
