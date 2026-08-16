@@ -37,6 +37,29 @@ while preserving the method, so the client sees the final `200` and no special
 handling is needed. It does cost two round trips per settings write. Note that
 `GET /api/settings` does **not** redirect.
 
+## Rejections arrive as an error status with a JSON body
+
+A refused request answers with a non-2xx status, and the body may still be JSON:
+
+| Request | Status | Body |
+| --- | --- | --- |
+| `GET /api/definitely-not-a-real-endpoint` | `404` | `404 page not found` (plain text) |
+| `POST /api/device` (a GET-only endpoint) | `404` | `404 page not found` (plain text) |
+| `POST /api/device/command` with `{}` | `400` | `{"error": {"step": "set_manual_command", "errCode": "Key: 'ManualCommandReq…"}}` |
+
+The JSON case is why `make_request` checks the status before it looks at the
+body. Returning a parsed error payload to the caller would leave
+`set_device_power` — the one write with no success flag to check — reporting a
+refused command as applied.
+
+## Every settings write stores a new record
+
+`PUT /api/settings` does not update the stored document in place. Reading the
+settings back after writing them returns identical values with a fresh `id`,
+`createdAt` and `updatedAt`, so those three fields cannot be used to tell
+whether a write changed anything. Nested records the write did not touch, such
+as `defaultMode`, keep their own original identifier and timestamps.
+
 ## The inverter power rating can be zero
 
 `technical_status.inverterPowerRating` reads `0` on this unit, while
@@ -153,3 +176,8 @@ one, but it still replaces the running session, so avoid it mid-charge.
 
 `temp/probe_units.py` collects the readings behind the two unit sections above.
 It only issues GETs, so it is safe to run at any time.
+
+The rejection statuses and the settings-record behaviour were probed the same
+way on 2026-08-16, against the same unit. Both are safe to repeat: the
+rejections change nothing because the device refuses them, and the settings
+probe writes the document back exactly as it was read.

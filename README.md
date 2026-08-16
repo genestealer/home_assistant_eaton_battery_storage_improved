@@ -262,6 +262,21 @@ the inverter or updating its firmware, rather than restarting Home Assistant.
 
 ## Configuration
 
+### Setup parameters
+
+The form shown when you add the integration, and again when you reconfigure or re-authenticate
+it, asks for:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| **Host** | Yes | The IP address or hostname of the inverter, optionally with a port (`192.168.1.10` or `xstorage.local:8443`). Do not include `https://` or a path. |
+| **Account type** | Yes | **Customer** or **Technician**. See [Account Types](#account-types). |
+| **Username** | Yes | The account name used to sign in to the inverter's web interface. |
+| **Password** | Yes | The password for that account. It is stored in Home Assistant's configuration and never shown again. |
+| **Inverter serial number** | For technician accounts | Required to sign in as a technician. For customer accounts, leave it empty unless the device fails to report its own serial, in which case type it in so the entry can be keyed on it. |
+| **PV installed** | No | Turn on if the inverter has solar panels attached. This creates the PV entities listed above; turning it off later disables them again. |
+| **Verify SSL certificate** | No | See [Verify SSL certificate](#verify-ssl-certificate). Off by default. |
+
 ### Account Types
 
 This integration supports two account types:

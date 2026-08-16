@@ -96,6 +96,14 @@ Carried over from the unreleased 0.3.0, and therefore also new to anyone on 0.2.
 
 ### Changed
 
+- **The charge and discharge helper numbers moved to the Configuration section** of the
+  device page. They configure this integration rather than reporting the inverter, so they
+  are now diagnostic-style config entities. Entity IDs and history are unaffected.
+- **Charge Power (%)** and **Discharge Power (%)** no longer carry the `power` device class.
+  A percentage is not a power unit, and the pairing would have failed as soon as a unit
+  override was applied. Their watt counterparts keep the device class.
+- **Battery Backup Level** gained the `battery` device class and **House Consumption
+  Threshold** the `power` device class, so both are recognised for what they are.
 - **Adding an inverter now requires its serial number.** The config flow used to fall back to
   `{host}_{username}` when the device did not report one, which put the IP address back into
   the identity the rest of this release works to remove. When no serial is available the form
@@ -171,6 +179,11 @@ readings recorded in [the device API behaviour notes](docs/device-api-behaviour.
 - The **Reload** action did nothing. It called a helper meant for YAML-configured platforms,
   which re-read `configuration.yaml` and returned without touching the config entry, so the
   device was never re-polled and no entity was rebuilt.
+- **An HTTP error from the inverter is now an error.** Only the status `401` was ever
+  inspected, so a `403`, `404` or `500` carrying a JSON body was handed to the integration as
+  if it had succeeded. The power switch was worst affected: it has no success flag to check,
+  so a refused command was reported as applied. A `401` that survives a fresh token now asks
+  for re-authentication instead of being retried forever.
 - Numeric sensors whose reading comes back as `n/a` are now simply unknown. Home Assistant
   refuses to add a numeric sensor holding a non-numeric value, so **BMS Highest Cell
   Voltage** could vanish entirely rather than merely having no value.
