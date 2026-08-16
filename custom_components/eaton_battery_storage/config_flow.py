@@ -34,7 +34,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 # Hostname, IPv4 address or bracketed IPv6 address, with an optional port.
-HOST_PATTERN = re.compile(r"^(?:\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(?::\d{1,5})?$")
+HOST_PATTERN = re.compile(
+    r"^(?:\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(?::(?P<port>\d{1,5}))?$"
+)
 
 # Error codes reported by the device, mapped to translation keys.
 AUTH_ERROR_CODES = {
@@ -74,6 +76,15 @@ async def _async_test_connection(
 
     result = device.get("result")
     return result.get("inverterSerialNumber") if isinstance(result, dict) else None
+
+
+def _is_valid_host(host: str) -> bool:
+    """Return True for a bare address or hostname with an optional usable port."""
+    match = HOST_PATTERN.match(host)
+    if match is None:
+        return False
+    port = match["port"]
+    return port is None or 1 <= int(port) <= 65535
 
 
 def _classify_auth_error(err: EatonAuthError) -> str:
@@ -139,7 +150,7 @@ async def _async_validate_input(
     hass: HomeAssistant, user_input: dict[str, Any], errors: dict[str, str]
 ) -> str | None:
     """Validate the form input, filling errors and returning the device serial."""
-    if not HOST_PATTERN.match(user_input[CONF_HOST]):
+    if not _is_valid_host(user_input[CONF_HOST]):
         errors[CONF_HOST] = "invalid_host"
         return None
 

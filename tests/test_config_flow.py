@@ -150,6 +150,8 @@ async def test_user_flow_requires_inverter_serial_for_technician(
         pytest.param("192.168.1.10/api", id="path"),
         pytest.param("../../etc", id="traversal"),
         pytest.param("192.168.1.10 ", id="trailing_space"),
+        pytest.param("192.168.1.10:0", id="port_zero"),
+        pytest.param("192.168.1.10:99999", id="port_out_of_range"),
     ],
 )
 async def test_user_flow_rejects_invalid_host(
