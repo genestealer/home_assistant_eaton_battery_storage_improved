@@ -13,6 +13,7 @@ import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.components.number.const import NumberDeviceClass
+from homeassistant.const import PERCENTAGE, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import (
@@ -79,6 +80,7 @@ async def async_setup_entry(
 class EatonBatteryNumberEntity(EatonEntity, NumberEntity):
     """Number entity for Eaton Battery Storage configurable values."""
 
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.BOX
 
     def __init__(
@@ -98,7 +100,7 @@ class EatonBatteryNumberEntity(EatonEntity, NumberEntity):
         self._attr_native_max_value = float(description["max"])
         self._attr_native_step = float(description["step"])
         self._attr_native_unit_of_measurement = description["unit"]
-        self._attr_device_class = NumberDeviceClass(description["device_class"])
+        self._attr_device_class = description["device_class"]
 
     @property
     def native_min_value(self) -> float:
@@ -189,7 +191,8 @@ class EatonXStorageHouseConsumptionThresholdNumber(EatonEntity, NumberEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:home-lightning-bolt"
-    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = NumberDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_native_min_value = 300
     _attr_native_max_value = 1000
     _attr_native_step = 25
@@ -252,7 +255,8 @@ class EatonXStorageBatteryBackupLevelNumber(EatonEntity, NumberEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:battery-lock"
-    _attr_native_unit_of_measurement = "%"
+    _attr_device_class = NumberDeviceClass.BATTERY
+    _attr_native_unit_of_measurement = PERCENTAGE
     _attr_native_min_value = 0
     _attr_native_max_value = 100
     _attr_native_step = 1
