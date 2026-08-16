@@ -202,12 +202,59 @@ async def test_an_empty_body_counts_as_success(
 async def test_a_non_json_body_raises(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """An HTML error page is not a usable answer."""
+    """A 200 carrying an HTML page is not a usable answer."""
     mock_signin(aioclient_mock)
-    aioclient_mock.get(f"{BASE_URL}/api/device", status=500, text="<html>nope</html>")
+    aioclient_mock.get(f"{BASE_URL}/api/device", text="<html>nope</html>")
     api = make_api(hass)
 
     with pytest.raises(EatonResponseError, match="Non-JSON response"):
+        await api.get_device()
+
+
+@pytest.mark.parametrize("status", [403, 404, 500])
+async def test_an_error_status_raises_even_with_a_json_body(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, status: int
+) -> None:
+    """An error payload must not be mistaken for device data."""
+    mock_signin(aioclient_mock)
+    aioclient_mock.get(
+        f"{BASE_URL}/api/device",
+        status=status,
+        json={"result": {"id": 1}},
+        headers=JSON_HEADERS,
+    )
+    api = make_api(hass)
+
+    with pytest.raises(EatonResponseError, match=f"HTTP {status}"):
+        await api.get_device()
+
+
+async def test_an_error_status_fails_a_write(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The power endpoint has no success flag, so only the status can fail it."""
+    mock_signin(aioclient_mock)
+    aioclient_mock.post(
+        f"{BASE_URL}/api/device/power",
+        status=500,
+        json={"error": "nope"},
+        headers=JSON_HEADERS,
+    )
+    api = make_api(hass)
+
+    with pytest.raises(EatonResponseError, match="HTTP 500"):
+        await api.set_device_power(True)
+
+
+async def test_a_401_that_survives_reauthentication_is_an_auth_error(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A fresh token that is still refused means the account lost access."""
+    mock_signin(aioclient_mock)
+    aioclient_mock.get(f"{BASE_URL}/api/device", status=401, text="")
+    api = make_api(hass)
+
+    with pytest.raises(EatonAuthError):
         await api.get_device()
 
 

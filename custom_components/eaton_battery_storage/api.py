@@ -146,6 +146,11 @@ class EatonBatteryAPI:
                 f"Sign-in returned a non-JSON response (status {status})"
             )
 
+        if not isinstance(body, dict):
+            raise EatonResponseError(
+                f"Sign-in returned an unexpected payload (status {status}): {body}"
+            )
+
         if (
             status == 200
             and body.get("successful")
@@ -276,11 +281,18 @@ class EatonBatteryAPI:
             headers["Authorization"] = f"Bearer {self.access_token}"
             status, body = await self._send(method, url, kwargs)
 
+        # A 401 that survives a fresh token means the account no longer has
+        # access, which reauth can resolve; anything else is a hard failure.
+        if status == 401:
+            raise EatonAuthError("401", f"{endpoint} rejected the access token")
+        if status >= 400:
+            raise EatonResponseError(f"{endpoint} returned HTTP {status}: {body}")
+
         if isinstance(body, dict):
             return body
 
         # Some write endpoints answer with an empty body on success.
-        if 200 <= status < 300 and not str(body).strip():
+        if status < 300 and not str(body).strip():
             return {}
 
         raise EatonResponseError(
