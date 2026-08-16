@@ -37,6 +37,56 @@ while preserving the method, so the client sees the final `200` and no special
 handling is needed. It does cost two round trips per settings write. Note that
 `GET /api/settings` does **not** redirect.
 
+## An accepted command answers with the stored mode record
+
+Captured from the device web interface on 2026-08-16. Request:
+
+```json
+{
+  "command": "SET_CHARGE",
+  "duration": 4,
+  "parameters": { "power": 100, "soc": 95, "action": "ACTION_CHARGE" }
+}
+```
+
+Response:
+
+```json
+{
+  "successful": true,
+  "message": "Content Ready",
+  "result": {
+    "id": "0def3bdb-f021-484e-a1d8-22cebaa391a1",
+    "command": "SET_CHARGE",
+    "createdAt": 1786919563000,
+    "updatedAt": 1786919563000,
+    "duration": 4,
+    "startTime": 2332,
+    "endTime": 332,
+    "recurrence": "MANUAL_EVENT",
+    "type": "MANUAL",
+    "parameters": { "action": "ACTION_CHARGE", "power": 100, "soc": 95 },
+    "user": { "id": "00000000-0000-0000-0000-000000000000", "firstName": "Local", "lastName": "User" }
+  }
+}
+```
+
+The result is the mode record the device stored, in the same shape that
+`status.currentMode` reports, so a caller can read the accepted command back
+without a second request. Everything except `command`, `duration` and
+`parameters` is filled in by the device:
+
+- `startTime` and `endTime` are HHMM integers derived from the time of the
+  request and its duration. Here 23:32 plus four hours gives `332`, which is
+  03:32 the next day: the pair wraps past midnight with no date to say so.
+- `recurrence` is `MANUAL_EVENT` and `type` is `MANUAL` for a command sent to
+  this endpoint. The other values either field can take are listed under
+  [Values missing from the documented enumerations](#values-missing-from-the-documented-enumerations);
+  which combinations a scheduled or default-mode record uses has not been
+  captured.
+- `user` is a placeholder for a locally issued command, with an all-zero
+  identifier and the fixed name `Local User`.
+
 ## Rejections arrive as an error status with a JSON body
 
 A refused request answers with a non-2xx status, and the body may still be JSON:
