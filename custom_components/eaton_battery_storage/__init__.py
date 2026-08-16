@@ -144,6 +144,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         _async_migrate_device_identifiers(hass, entry, host)
 
+    elif entry.minor_version < 1:
+        # 2.0 only existed in unreleased builds and needs no data change, but
+        # the marker has to move so the entry matches what the flow creates.
+        hass.config_entries.async_update_entry(entry, minor_version=1)
+
     return True
 
 

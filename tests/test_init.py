@@ -219,6 +219,54 @@ async def test_migrate_entry_drops_host_device_identifier(
 
 
 @pytest.mark.usefixtures("mock_connected_device")
+async def test_migrate_entry_keyed_on_the_host_keeps_working(
+    hass: HomeAssistant,
+) -> None:
+    """An entry with no serial to migrate to keeps the host until a reauth."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=HOST,
+        data=USER_INPUT,
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, HOST)}
+    )
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.unique_id == HOST
+    assert (entry.version, entry.minor_version) == (VERSION, MINOR_VERSION)
+    # The host identifier is replaced by the entry ID, which is what the
+    # coordinator falls back to when the device reports no serial.
+    assert device_registry.async_get(device.id).identifiers == {
+        (DOMAIN, entry.entry_id)
+    }
+
+
+@pytest.mark.usefixtures("mock_connected_device")
+async def test_migrate_entry_moves_the_minor_version(hass: HomeAssistant) -> None:
+    """A 2.0 entry only needs its marker moved to match what the flow creates."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=SERIAL,
+        data=USER_INPUT,
+        version=2,
+        minor_version=0,
+    )
+    await setup_entry(hass, entry)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert (entry.version, entry.minor_version) == (VERSION, MINOR_VERSION)
+
+
+@pytest.mark.usefixtures("mock_connected_device")
 async def test_pv_sensors_follow_the_pv_option(hass: HomeAssistant) -> None:
     """Turning the PV option off hides the sensors it created, and back on restores them."""
     entry = MockConfigEntry(
