@@ -207,7 +207,9 @@ readings recorded in [the device API behaviour notes](docs/device-api-behaviour.
   than failing to write their state at all.
 - Authentication failures on the optional endpoints are surfaced instead of being swallowed,
   which previously left every technician-only sensor unknown with nothing to explain it.
-- System health reports every configured inverter rather than only the first one.
+- System health covers every configured inverter rather than only the first one. The panel
+  keeps its three translated rows, listing every host and reporting the reachability and
+  update time of the worst-off inverter.
 
 - A running manual discharge is no longer reported as a manual charge. The device echoes
   both directions back under the same command, so the direction is now read from the
