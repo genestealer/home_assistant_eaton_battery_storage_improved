@@ -20,7 +20,9 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.eaton_battery_storage.const import DOMAIN
 from custom_components.eaton_battery_storage.select import (
+    DEFAULT_HOUSE_PEAK_CONSUMPTION,
     DEFAULT_MODE_OPTIONS,
+    DEFAULT_OPTIMAL_SOC,
     MANUAL_MODE_OPTIONS,
 )
 
@@ -286,6 +288,57 @@ async def test_a_rejected_default_mode_write_raises(
             {ATTR_ENTITY_ID: DEFAULT_MODE_ENTITY_ID, ATTR_OPTION: "basic_mode"},
             blocking=True,
         )
+
+
+@pytest.mark.parametrize(
+    ("option", "settings", "status", "expected_parameters"),
+    [
+        pytest.param(
+            "frequency_regulation",
+            {},
+            {"energyFlow": {"batteryBackupLevel": 45}},
+            {"powerAllocation": 0, "optimalSoc": 45},
+            id="frequency_regulation_falls_back_to_the_reported_level",
+        ),
+        pytest.param(
+            "frequency_regulation",
+            {},
+            {"energyFlow": {}},
+            {"powerAllocation": 0, "optimalSoc": DEFAULT_OPTIMAL_SOC},
+            id="frequency_regulation_falls_back_to_the_default",
+        ),
+        pytest.param(
+            "peak_shaving",
+            {},
+            {"energyFlow": {}},
+            {"maxHousePeakConsumption": DEFAULT_HOUSE_PEAK_CONSUMPTION},
+            id="peak_shaving_falls_back_to_the_default_threshold",
+        ),
+    ],
+)
+async def test_a_mode_falls_back_when_the_device_reports_no_setting(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    option: str,
+    settings: dict,
+    status: dict,
+    expected_parameters: dict,
+) -> None:
+    """A missing setting must not send the device a null parameter."""
+    aioclient_mock.post(
+        f"{BASE_URL}/api/device/command", json=COMMAND_ACCEPTED, headers=JSON_HEADERS
+    )
+    mock_device(aioclient_mock, settings=settings, status=status)
+    await setup_entry(hass)
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: option},
+        blocking=True,
+    )
+
+    assert last_command(aioclient_mock)["parameters"] == expected_parameters
 
 
 def test_every_option_has_a_translation() -> None:

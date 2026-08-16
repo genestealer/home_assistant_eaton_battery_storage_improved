@@ -15,6 +15,15 @@ from .api import EatonError
 from .const import DOMAIN, resolve_mode_command
 from .coordinator import EatonConfigEntry, EatonXstorageHomeCoordinator
 from .entity import EatonEntity
+from .number_constants import (
+    CHARGE_DURATION,
+    CHARGE_END_SOC,
+    CHARGE_POWER,
+    DISCHARGE_DURATION,
+    DISCHARGE_END_SOC,
+    DISCHARGE_POWER,
+    RUN_DURATION,
+)
 
 PARALLEL_UPDATES = 1
 
@@ -72,6 +81,36 @@ class EatonXStorageBaseSelect(EatonEntity, SelectEntity):
         self._cmd_to_option = {cmd: option for option, cmd in options.items()}
         self._attr_options = list(options)
 
+    def _optimal_soc(self, settings: dict[str, Any]) -> int:
+        """Return the state of charge frequency regulation should hold."""
+        energy_flow = (
+            (self.coordinator.data or {}).get("status", {}).get("energyFlow", {})
+        )
+        for candidate in (
+            settings.get("bmsBackupLevel"),
+            energy_flow.get("batteryBackupLevel"),
+        ):
+            if isinstance(candidate, (int, float)):
+                return int(candidate)
+        return DEFAULT_OPTIMAL_SOC
+
+    def _mode_parameters(
+        self, command: str, settings: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build the parameters the device expects for an intelligent mode."""
+        if command == "SET_PEAK_SHAVING":
+            threshold = settings.get("energySavingMode", {}).get(
+                "houseConsumptionThreshold"
+            )
+            if not isinstance(threshold, (int, float)):
+                threshold = DEFAULT_HOUSE_PEAK_CONSUMPTION
+            return {"maxHousePeakConsumption": int(threshold)}
+        if command == "SET_VARIABLE_GRID_INJECTION":
+            return {"maximumPower": 0}
+        if command == "SET_FREQUENCY_REGULATION":
+            return {"powerAllocation": 0, "optimalSoc": self._optimal_soc(settings)}
+        return {}
+
 
 class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
     """Select entity to configure Default Operation Mode in settings.defaultMode."""
@@ -93,29 +132,6 @@ class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
         default_mode = settings.get("defaultMode", {})
         return self._cmd_to_option.get(default_mode.get("command"))
 
-    def _build_parameters(self, command: str, settings: dict) -> dict[str, int]:
-        """Build the parameters the device expects for the selected command."""
-        if command == "SET_PEAK_SHAVING":
-            threshold = settings.get("energySavingMode", {}).get(
-                "houseConsumptionThreshold"
-            )
-            if isinstance(threshold, (int, float)):
-                return {"maxHousePeakConsumption": int(threshold)}
-            return {}
-        if command == "SET_VARIABLE_GRID_INJECTION":
-            return {"maximumPower": 0}
-        if command == "SET_FREQUENCY_REGULATION":
-            optimal_soc = settings.get("bmsBackupLevel")
-            if not isinstance(optimal_soc, (int, float)):
-                energy_flow = (
-                    (self.coordinator.data or {})
-                    .get("status", {})
-                    .get("energyFlow", {})
-                )
-                optimal_soc = energy_flow.get("batteryBackupLevel", DEFAULT_OPTIMAL_SOC)
-            return {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
-        return {}
-
     async def async_select_option(self, option: str) -> None:
         """Select an option."""
         command = self._option_to_cmd[option]
@@ -123,7 +139,7 @@ class EatonXStorageDefaultOperationModeSelect(EatonXStorageBaseSelect):
         def mutate(settings: dict) -> None:
             settings["defaultMode"] = {
                 "command": command,
-                "parameters": self._build_parameters(command, settings),
+                "parameters": self._mode_parameters(command, settings),
             }
 
         try:
@@ -163,11 +179,11 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
     def _command_duration(self, command: str, helper_values: dict) -> int:
         """Return the run duration in hours configured for this command."""
         if command == "SET_CHARGE":
-            return int(helper_values.get("charge_duration", 1))
+            return int(helper_values.get(CHARGE_DURATION, 1))
         if command == "SET_DISCHARGE":
-            return int(helper_values.get("discharge_duration", 1))
+            return int(helper_values.get(DISCHARGE_DURATION, 1))
         # All intelligent modes use the shared run_duration
-        return int(helper_values.get("run_duration", 2))
+        return int(helper_values.get(RUN_DURATION, 2))
 
     def _command_parameters(self, command: str, helper_values: dict) -> dict[str, Any]:
         """Build the parameters the device expects for the selected command."""
@@ -176,26 +192,16 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
         if command == "SET_CHARGE":
             return {
                 "action": "ACTION_CHARGE",
-                "power": int(helper_values.get("charge_power", 15)),
-                "soc": int(helper_values.get("charge_end_soc", 90)),
+                "power": int(helper_values.get(CHARGE_POWER, 15)),
+                "soc": int(helper_values.get(CHARGE_END_SOC, 90)),
             }
         if command == "SET_DISCHARGE":
             return {
                 "action": "ACTION_DISCHARGE",
-                "power": int(helper_values.get("discharge_power", 15)),
-                "soc": int(helper_values.get("discharge_end_soc", 10)),
+                "power": int(helper_values.get(DISCHARGE_POWER, 15)),
+                "soc": int(helper_values.get(DISCHARGE_END_SOC, 10)),
             }
-        if command == "SET_PEAK_SHAVING":
-            threshold = settings.get("energySavingMode", {}).get(
-                "houseConsumptionThreshold", DEFAULT_HOUSE_PEAK_CONSUMPTION
-            )
-            return {"maxHousePeakConsumption": int(threshold)}
-        if command == "SET_VARIABLE_GRID_INJECTION":
-            return {"maximumPower": 0}
-        if command == "SET_FREQUENCY_REGULATION":
-            optimal_soc = settings.get("bmsBackupLevel", DEFAULT_OPTIMAL_SOC)
-            return {"powerAllocation": 0, "optimalSoc": int(optimal_soc)}
-        return {}
+        return self._mode_parameters(command, settings)
 
     async def async_select_option(self, option: str) -> None:
         """Select an option."""

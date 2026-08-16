@@ -59,8 +59,8 @@ class EatonXStorageMarkNotificationsReadButton(EatonXStorageBaseButton):
                 translation_domain=DOMAIN,
                 translation_key="mark_notifications_read_failed",
             ) from err
-
-        await self.coordinator.async_request_refresh()
+        finally:
+            await self.coordinator.async_request_refresh()
 
 
 class EatonXStorageStopCurrentOperationButton(EatonXStorageBaseButton):
