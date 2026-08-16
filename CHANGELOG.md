@@ -114,6 +114,8 @@ Carried over from the unreleased 0.3.0, and therefore also new to anyone on 0.2.
   host instead of appearing as a duplicate.
 - The README documents the `reload` action: what it does, that it takes no data and that it
   needs an administrator.
+- The README documents how to remove the integration, including that settings written to the
+  inverter are not reverted and a running manual command finishes on its own.
 - Settings writes (energy saving mode, backup level, house consumption threshold, default
   operation mode) go through a single lock-protected read-modify-write helper, so two
   automations firing at the same time can no longer overwrite each other's changes.
