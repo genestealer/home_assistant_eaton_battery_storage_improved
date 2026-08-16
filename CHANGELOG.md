@@ -4,14 +4,19 @@ All notable changes to this integration are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.0.0] - 2026-08-13
+## [1.0.0] - Unreleased
 
 Implements the findings of [the 2026-08-01 code review](docs/code-review-2026-08-01.md)
 and [the 2026-08-13 review](docs/code-review-2026-08-13.md).
 
+0.2.2 is the last version published on `main`, and the 0.3.0 notes below were never released
+either. Anyone upgrading from 0.2.2 gets both sets of changes at once, so read this entry and
+the 0.3.0 one together.
+
 ### Breaking changes
 
-Everything in this release that needs something from you. The statistics clean-up is
+Everything that needs something from you. Because 0.3.0 was never published, this covers the
+0.2.2 to 1.0.0 upgrade, which is the only one anyone can make. The statistics clean-up is
 described under [Upgrading](#upgrading).
 
 - **The config entry format moves to version 2.** Existing entries migrate automatically on
@@ -55,6 +60,17 @@ described under [Upgrading](#upgrading).
 - **Re-authentication refuses a different inverter.** It used to accept any device and keep
   the original identity, silently continuing one inverter's history with another's readings.
   An entry still keyed on its IP address adopts the serial at the next re-authentication.
+
+Carried over from the unreleased 0.3.0, and therefore also new to anyone on 0.2.2:
+
+- **BMS Fault Code** renders readable text such as `Over-voltage` instead of a stringified
+  Python list, and reads `No fault` rather than `unknown` when there is none. The raw codes
+  moved to the `fault_codes` attribute.
+- **Current Mode Start Time** and **End Time** changed from 12-hour `11:54 am` to 24-hour
+  `11:54`.
+- **Notifications** reports the true total rather than the size of the current page, so the
+  number changes.
+- **Current Mode Duration** gained the `duration` device class and the unit `h`.
 
 ### Added
 
@@ -256,7 +272,11 @@ re-authenticates.
   instead of hardcoding 3600 W in six places. The watt sliders now span 5–100 % of that
   rating, so 4.6 kW and 6 kW models are no longer capped at 3600 W.
 
-## [0.3.0] - 2026-08-11
+## [0.3.0] - Never released
+
+This work was superseded by 1.0.0 before it was published. It is kept as its own entry
+because it is a distinct body of changes, but there was never a 0.3.0 release to upgrade
+from.
 
 ### Added
 
@@ -330,4 +350,4 @@ re-authenticates.
 
 ## [0.2.2] and earlier
 
-See git history prior to this file's creation.
+The last version published on `main`. See git history prior to this file's creation.
