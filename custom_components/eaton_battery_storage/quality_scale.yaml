@@ -7,7 +7,12 @@ rules:
   appropriate-polling: done
   brands:
     status: todo
-    comment: Branding assets need to be submitted to home-assistant/brands.
+    comment: >-
+      Deliberately not done. The rule allows no exceptions, so this stays todo
+      rather than exempt. Since Home Assistant 2026.3 it needs only a brand/
+      folder holding icon.png and logo.png inside the integration, not a pull
+      request against home-assistant/brands, but no artwork exists for this
+      unofficial integration and Eaton's marks are not ours to ship.
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
