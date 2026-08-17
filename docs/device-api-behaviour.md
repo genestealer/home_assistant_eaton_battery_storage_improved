@@ -87,6 +87,15 @@ without a second request. Everything except `command`, `duration` and
 - `user` is a placeholder for a locally issued command, with an all-zero
   identifier and the fixed name `Local User`.
 
+### The status takes a few seconds to report the accepted command
+
+`status.currentMode` still describes the previous mode for a moment after the
+command has been accepted. Polling the status every two seconds after each of
+three commands sent to a 3.6 kW unit, the new record appeared after 0.4 s, 2.7 s
+and 2.8 s, and never changed again afterwards. Anything that reads the mode back
+immediately therefore gets the old one; the response above is the reliable
+answer, and the integration shows it until a poll agrees with it.
+
 ## Rejections arrive as an error status with a JSON body
 
 A refused request answers with a non-2xx status, and the body may still be JSON:
