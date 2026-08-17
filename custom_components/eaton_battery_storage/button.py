@@ -79,11 +79,14 @@ class EatonXStorageStopCurrentOperationButton(EatonXStorageBaseButton):
     async def async_press(self) -> None:
         """Stop current operation by setting to basic mode."""
         try:
-            await self.coordinator.api.send_device_command("SET_BASIC_MODE", 1, {})
+            response = await self.coordinator.api.send_device_command(
+                "SET_BASIC_MODE", 1, {}
+            )
         except EatonError as err:
+            await self.coordinator.async_request_refresh()
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="stop_current_operation_failed",
             ) from err
-        finally:
-            await self.coordinator.async_request_refresh()
+
+        await self.coordinator.async_apply_command_result(response)

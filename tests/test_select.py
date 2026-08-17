@@ -1,9 +1,11 @@
 """Tests for the Eaton xStorage Home select platform."""
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.select import (
     ATTR_OPTION,
     SERVICE_SELECT_OPTION,
@@ -19,6 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.eaton_battery_storage.const import DOMAIN
+from custom_components.eaton_battery_storage.coordinator import PENDING_MODE_TIMEOUT
 from custom_components.eaton_battery_storage.select import (
     DEFAULT_HOUSE_PEAK_CONSUMPTION,
     DEFAULT_MODE_OPTIONS,
@@ -101,6 +104,67 @@ async def test_selecting_a_mode_sends_the_configured_helpers(
         "duration": 1,
         "parameters": {"action": "ACTION_CHARGE", "power": 20, "soc": 80},
     }
+
+
+async def test_the_accepted_mode_is_shown_without_waiting_for_a_poll(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The mode the device echoes back wins over the one it still reports."""
+    aioclient_mock.post(
+        f"{BASE_URL}/api/device/command", json=COMMAND_ACCEPTED, headers=JSON_HEADERS
+    )
+    # The status endpoint keeps answering with the previous mode for a while.
+    mock_device(aioclient_mock)
+    await setup_entry(hass)
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "manual_charge"},
+        blocking=True,
+    )
+
+    assert hass.states.get(CURRENT_MODE_ENTITY_ID).state == "manual_charge"
+
+
+@pytest.mark.parametrize(
+    ("elapsed", "expected"),
+    [
+        pytest.param(
+            timedelta(minutes=1), "manual_charge", id="held_while_the_device_lags"
+        ),
+        pytest.param(
+            PENDING_MODE_TIMEOUT + timedelta(minutes=1),
+            "basic_mode",
+            id="the_device_wins_once_the_hold_expires",
+        ),
+    ],
+)
+async def test_the_accepted_mode_outlives_a_lagging_poll(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: FrozenDateTimeFactory,
+    elapsed: timedelta,
+    expected: str,
+) -> None:
+    """A poll that still reports the previous mode does not undo the selection."""
+    aioclient_mock.post(
+        f"{BASE_URL}/api/device/command", json=COMMAND_ACCEPTED, headers=JSON_HEADERS
+    )
+    mock_device(aioclient_mock)
+    entry = await setup_entry(hass)
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: CURRENT_MODE_ENTITY_ID, ATTR_OPTION: "manual_charge"},
+        blocking=True,
+    )
+
+    freezer.tick(elapsed)
+    await entry.runtime_data.async_refresh()
+
+    assert hass.states.get(CURRENT_MODE_ENTITY_ID).state == expected
 
 
 @pytest.mark.parametrize(

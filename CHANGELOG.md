@@ -216,6 +216,14 @@ readings recorded in [the device API behaviour notes](docs/device-api-behaviour.
   `action` parameter that distinguishes them. This affects the **Current operation mode**
   select and the **Current Mode Command** sensor; the discharge itself was always carried
   out correctly. ([#33](https://github.com/greyfold/home_assistant_eaton_battery_storage/issues/33))
+- **Current operation mode** no longer springs back to the previous mode after a selection.
+  The inverter takes a couple of seconds to report an accepted command in its status, and the
+  refresh issued straight after the command beat it to it, read the old mode back and then
+  left it on screen until the next poll a minute later. The mode the device echoes back when
+  it accepts a command is now shown until a poll agrees with it, or for two minutes, whichever
+  comes first. The **Stop current operation** button and the **Current Mode** sensors follow
+  the same record. Measured on a 3.6 kW unit: the status caught up after 0.4 s to 2.8 s, and
+  the entity held the selection across three polls where before it reverted after one.
 - `sensor.eaton_xstorage_home_battery_state_of_charge` and the technical BMS state of charge
   now declare `state_class: measurement`, so they are recorded in long-term statistics.
   Sensor descriptions can now set `state_class` explicitly instead of only deriving it from

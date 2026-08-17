@@ -210,16 +210,17 @@ class EatonXStorageCurrentOperationModeSelect(EatonXStorageBaseSelect):
         duration = self._command_duration(command, helper_values)
 
         try:
-            await self.coordinator.api.send_device_command(
+            response = await self.coordinator.api.send_device_command(
                 command, duration, self._command_parameters(command, helper_values)
             )
         except EatonError as err:
+            await self.coordinator.async_request_refresh()
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="set_operation_mode_failed",
                 translation_placeholders={"mode": option},
             ) from err
-        finally:
-            await self.coordinator.async_request_refresh()
+
+        await self.coordinator.async_apply_command_result(response)
 
         _LOGGER.debug("Current operation mode set to %s for %d hours", option, duration)

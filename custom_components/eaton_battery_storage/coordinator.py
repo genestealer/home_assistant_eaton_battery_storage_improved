@@ -25,6 +25,7 @@ from homeassistant.helpers.update_coordinator import (
     TimestampDataUpdateCoordinator,
     UpdateFailed,
 )
+from homeassistant.util import dt as dt_util
 
 from .api import EatonAuthError, EatonBatteryAPI, EatonError, EatonResponseError
 from .const import (
@@ -32,6 +33,7 @@ from .const import (
     CONF_USER_TYPE,
     DEFAULT_INVERTER_POWER_RATING,
     DOMAIN,
+    resolve_mode_command,
 )
 from .number_constants import (
     CHARGE_POWER,
@@ -54,6 +56,11 @@ LINKED_NUMBER_KEYS = (
 
 # Before the helper values were scoped per entry they all shared this one store.
 LEGACY_NUMBER_STORE_KEY = f"{DOMAIN}_number_values.json"
+
+# How long an accepted mode is trusted over the one the device reports. Long
+# enough to cover the lag, short enough that a mode changed on the device's own
+# panel is not hidden for long.
+PENDING_MODE_TIMEOUT = timedelta(minutes=2)
 
 
 def number_store_key(entry_id: str) -> str:
@@ -106,6 +113,8 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
         self.api = api
         self._settings_lock = asyncio.Lock()
         self._unavailable_logged = False
+        self._pending_mode: dict[str, Any] | None = None
+        self._pending_mode_until = dt_util.utcnow()
 
     @property
     def full_scale_power(self) -> int:
@@ -202,6 +211,33 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
             await self.api.update_settings({"settings": settings})
         await self.async_request_refresh()
 
+    async def async_apply_command_result(self, response: dict[str, Any]) -> None:
+        """Publish the mode record the device answered an accepted command with.
+
+        The record has the shape of status.currentMode, which keeps reporting
+        the previous mode for a while after the command is accepted, so it is
+        held over the polled value until the device catches up.
+        """
+        mode = _unwrap(response)
+        if not mode or not self.data:
+            await self.async_request_refresh()
+            return
+        self._pending_mode = mode
+        self._pending_mode_until = dt_util.utcnow() + PENDING_MODE_TIMEOUT
+        status = {**self.data.get("status", {}), "currentMode": mode}
+        self.async_set_updated_data({**self.data, "status": status})
+
+    def _hold_pending_mode(self, status: dict[str, Any]) -> None:
+        """Keep an accepted mode in the status until the device reports it."""
+        if self._pending_mode is None:
+            return
+        if dt_util.utcnow() >= self._pending_mode_until or resolve_mode_command(
+            status.get("currentMode", {})
+        ) == resolve_mode_command(self._pending_mode):
+            self._pending_mode = None
+            return
+        status["currentMode"] = self._pending_mode
+
     async def _async_fetch_all(self) -> dict[str, Any]:
         """Fetch every endpoint, tolerating failures of the optional ones."""
         # Core data: if these fail the device is considered offline.
@@ -258,5 +294,7 @@ class EatonXstorageHomeCoordinator(TimestampDataUpdateCoordinator[dict[str, Any]
         if self._unavailable_logged:
             self._unavailable_logged = False
             _LOGGER.info("Eaton xStorage Home is available again")
+
+        self._hold_pending_mode(results["status"])
 
         return results
